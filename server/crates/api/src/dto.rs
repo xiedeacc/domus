@@ -417,26 +417,22 @@ impl SharedLinkResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct MapMarkerResponseDto {
     pub id: Uuid,
-    pub asset_id: Uuid,
     pub lat: f64,
     pub lon: f64,
     pub city: Option<String>,
     pub state: Option<String>,
     pub country: Option<String>,
-    pub file_created_at: String,
 }
 
 impl MapMarkerResponseDto {
     pub fn from_asset_exif(asset: &Asset, exif: &Exif) -> Option<Self> {
         Some(Self {
             id: asset.id,
-            asset_id: asset.id,
             lat: exif.latitude?,
             lon: exif.longitude?,
             city: exif.city.clone(),
             state: exif.state.clone(),
             country: exif.country.clone(),
-            file_created_at: iso(&asset.file_created_at),
         })
     }
 }
@@ -702,6 +698,25 @@ mod tests {
             value["assets"][1]["id"],
             "10000000-0000-0000-0000-000000000031"
         );
+    }
+
+    #[test]
+    fn map_marker_response_uses_immich_shape_without_extra_fields() {
+        let value = serde_json::to_value(MapMarkerResponseDto {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000050").unwrap(),
+            lat: 42.0,
+            lon: 69.0,
+            city: Some("city".to_owned()),
+            state: Some("state".to_owned()),
+            country: Some("country".to_owned()),
+        })
+        .unwrap();
+
+        for field in ["id", "lat", "lon", "city", "state", "country"] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
+        assert!(value.get("assetId").is_none());
+        assert!(value.get("fileCreatedAt").is_none());
     }
 
     #[test]
