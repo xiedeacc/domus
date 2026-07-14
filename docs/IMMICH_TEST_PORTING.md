@@ -32,6 +32,9 @@ Current non-ML Immich test inventory:
 | OAuth service/controller behavior | `server/crates/api/src/routes/oauth.rs` OAuth profile/id-token parsing |
 | System config defaults | `server/crates/domain/src/services/system_config.rs` OAuth and storage-template default shape |
 | Mobile backup settings behavior | `app/test/backup_settings_test.dart` persisted auto-backup and selected-album settings |
+| `server/src/utils/misc.spec.ts` | `server/crates/common/src/utils.rs` deep key listing, deep unset, glob-to-SQL pattern |
+| `server/src/utils/request.spec.ts` | `server/crates/common/src/utils.rs` Immich mobile user-agent version parsing |
+| `server/src/cores/storage.core.spec.ts` | `server/crates/media/src/storage.rs` media-root path containment checks |
 
 ## Rules
 

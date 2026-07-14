@@ -134,6 +134,12 @@ impl StorageCore {
     pub fn media_root(&self) -> &Path {
         &self.media_root
     }
+
+    pub fn is_immich_path(&self, path: impl AsRef<Path>) -> bool {
+        let media_root = normalize_for_prefix(&self.media_root);
+        let path = normalize_for_prefix(path.as_ref());
+        path == media_root || path.starts_with(&format!("{media_root}/"))
+    }
 }
 
 fn sanitize_segment(value: &str) -> String {
@@ -144,4 +150,45 @@ fn sanitize_segment(value: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+fn normalize_for_prefix(path: &Path) -> String {
+    path.to_string_lossy().trim_end_matches('/').to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_immich_path_matches_media_location() {
+        let storage = StorageCore::new("/photos");
+
+        assert!(storage.is_immich_path("/photos"));
+        assert!(storage.is_immich_path("/photos/new/"));
+        assert!(!storage.is_immich_path("/photos_new"));
+        assert!(!storage.is_immich_path("/some/other/path"));
+    }
+
+    #[test]
+    fn library_template_path_sanitizes_segments_and_renders_immich_tokens() {
+        let storage = StorageCore::new("/photos");
+        let asset_id = Uuid::parse_str("10000000-0000-0000-0000-000000000000").unwrap();
+        let taken_at = chrono::DateTime::parse_from_rfc3339("2026-07-14T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let path = storage.library_template_path(
+            "label/with:bad",
+            asset_id,
+            "IMG:0001.JPG",
+            taken_at,
+            "{{y}}/{{MM}}/{{dd}}/{{name}}-{{assetId}}.{{ext}}",
+        );
+
+        assert_eq!(
+            path.to_string_lossy(),
+            "/photos/library/label_with_bad/2026/07/14/IMG_0001-10000000-0000-0000-0000-000000000000.jpg"
+        );
+    }
 }
