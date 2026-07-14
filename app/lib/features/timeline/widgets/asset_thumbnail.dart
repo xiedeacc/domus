@@ -6,10 +6,16 @@ import '../../../core/api/api_client.dart';
 import '../../../models/asset.dart';
 
 class AssetThumbnail extends ConsumerWidget {
-  const AssetThumbnail({super.key, required this.asset, this.onTap});
+  const AssetThumbnail({
+    super.key,
+    required this.asset,
+    this.onTap,
+    this.thumbnailSize = 'preview',
+  });
 
   final Asset asset;
   final VoidCallback? onTap;
+  final String thumbnailSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,7 +27,7 @@ class AssetThumbnail extends ConsumerWidget {
         fit: StackFit.expand,
         children: [
           CachedNetworkImage(
-            imageUrl: api.thumbnailUrl(asset.id),
+            imageUrl: api.thumbnailUrl(asset.id, size: thumbnailSize),
             httpHeaders: {
               if (api.dio.options.headers['Authorization'] != null)
                 'Authorization':

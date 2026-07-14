@@ -1,6 +1,6 @@
 //! Thumbnail/preview generation. Immich generates, per asset:
-//!   - preview:   JPEG, max 1440px
-//!   - thumbnail: WEBP, max 250px
+//!   - preview:   JPEG, max 2560px
+//!   - thumbnail: WEBP, max 512px
 //!   - thumbhash: compact placeholder hash stored on the asset row
 //! Video assets get their poster frame extracted with ffmpeg first.
 
@@ -25,16 +25,16 @@ pub struct ThumbnailOptions {
 impl ThumbnailOptions {
     pub fn preview() -> Self {
         Self {
-            size: 1440,
+            size: 2560,
             format: ImageFormat::Jpeg,
-            quality: 80,
+            quality: 95,
         }
     }
     pub fn thumbnail() -> Self {
         Self {
-            size: 250,
+            size: 512,
             format: ImageFormat::Webp,
-            quality: 80,
+            quality: 95,
         }
     }
 }
@@ -45,12 +45,13 @@ pub async fn generate(input: &Path, output: &Path, options: ThumbnailOptions) ->
         tokio::fs::create_dir_all(parent).await?;
     }
 
+    let vips_output = format!("{}[Q={}]", output.to_string_lossy(), options.quality);
     let status = Command::new("vipsthumbnail")
         .arg(input)
         .arg("--size")
         .arg(format!("{}x{}>", options.size, options.size))
         .arg("--output")
-        .arg(output)
+        .arg(vips_output)
         .arg("--rotate")
         .status()
         .await;
@@ -83,4 +84,22 @@ pub async fn thumbhash(thumbnail: &Path) -> Result<Vec<u8>> {
     let data = tokio::fs::read(thumbnail).await?;
     let digest = Sha1::digest(&data);
     Ok(digest[..16].to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn thumbnail_defaults_prioritize_lan_quality() {
+        let preview = ThumbnailOptions::preview();
+        assert_eq!(preview.size, 2560);
+        assert_eq!(preview.quality, 95);
+        assert!(matches!(preview.format, ImageFormat::Jpeg));
+
+        let thumbnail = ThumbnailOptions::thumbnail();
+        assert_eq!(thumbnail.size, 512);
+        assert_eq!(thumbnail.quality, 95);
+        assert!(matches!(thumbnail.format, ImageFormat::Webp));
+    }
 }
