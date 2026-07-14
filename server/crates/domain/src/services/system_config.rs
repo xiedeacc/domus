@@ -259,7 +259,10 @@ pub fn default_storage_template() -> serde_json::Value {
 }
 
 pub fn merge_with_defaults(value: Value) -> Value {
-    merge_json(default_config(), value)
+    let defaults = default_config();
+    let mut merged = merge_json(defaults.clone(), value);
+    coerce_bool_strings(&defaults, &mut merged);
+    merged
 }
 
 pub fn validate_config(value: &Value) -> Result<()> {
@@ -282,6 +285,35 @@ fn merge_json(mut base: Value, overlay: Value) -> Value {
             Value::Object(std::mem::take(base))
         }
         (_, overlay) => overlay,
+    }
+}
+
+fn coerce_bool_strings(schema: &Value, value: &mut Value) {
+    match schema {
+        Value::Bool(_) => {
+            if let Value::String(text) = value {
+                if text == "true" || text == "false" {
+                    *value = Value::Bool(text == "true");
+                }
+            }
+        }
+        Value::Object(schema) => {
+            if let Value::Object(value) = value {
+                for (key, child) in value {
+                    if let Some(child_schema) = schema.get(key) {
+                        coerce_bool_strings(child_schema, child);
+                    }
+                }
+            }
+        }
+        Value::Array(schema) => {
+            if let (Some(item_schema), Value::Array(value)) = (schema.first(), value) {
+                for item in value {
+                    coerce_bool_strings(item_schema, item);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -811,6 +843,37 @@ mod tests {
         let err = validate_config(&config).unwrap_err().to_string();
         assert!(err.contains("nightlyTasks.databaseCleanup"));
         assert!(err.contains("expected boolean"));
+    }
+
+    #[test]
+    fn coerces_config_bool_strings_like_immich() {
+        let config = merge_with_defaults(serde_json::json!({
+            "backup": {"database": {"enabled": "false"}},
+            "ffmpeg": {"twoPass": "true"},
+            "oauth": {"enabled": "true"},
+            "nightlyTasks": {"databaseCleanup": "false"}
+        }));
+        validate_config(&config).unwrap();
+        assert_eq!(
+            config
+                .pointer("/backup/database/enabled")
+                .and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        assert_eq!(
+            config.pointer("/ffmpeg/twoPass").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            config.pointer("/oauth/enabled").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            config
+                .pointer("/nightlyTasks/databaseCleanup")
+                .and_then(|v| v.as_bool()),
+            Some(false)
+        );
     }
 
     #[test]
