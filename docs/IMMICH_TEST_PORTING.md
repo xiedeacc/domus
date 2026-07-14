@@ -35,6 +35,8 @@ Current non-ML Immich test inventory:
 | `server/src/utils/misc.spec.ts` | `server/crates/common/src/utils.rs` deep key listing, deep unset, glob-to-SQL pattern |
 | `server/src/utils/request.spec.ts` | `server/crates/common/src/utils.rs` Immich mobile user-agent version parsing |
 | `server/src/cores/storage.core.spec.ts` | `server/crates/media/src/storage.rs` media-root path containment checks |
+| `server/src/dtos/album-response.dto.spec.ts` | `server/crates/api/src/dto.rs` album `startDate`/`endDate` mapping |
+| DTO camelCase contract | `server/crates/api/src/dto.rs` album/user/login response field casing |
 
 ## Rules
 

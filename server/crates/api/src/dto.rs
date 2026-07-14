@@ -130,6 +130,10 @@ pub struct AlbumResponseDto {
     pub album_users: Vec<serde_json::Value>,
     pub shared: bool,
     pub has_shared_link: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<String>,
 }
 
 impl From<&Album> for AlbumResponseDto {
@@ -140,6 +144,7 @@ impl From<&Album> for AlbumResponseDto {
 
 impl AlbumResponseDto {
     pub fn from_album(a: &Album, asset_count: i64, assets: Vec<serde_json::Value>) -> Self {
+        let (start_date, end_date) = album_date_range(&assets);
         Self {
             id: a.id,
             owner_id: a.owner_id,
@@ -155,8 +160,20 @@ impl AlbumResponseDto {
             album_users: vec![],
             shared: false,
             has_shared_link: false,
+            start_date,
+            end_date,
         }
     }
+}
+
+fn album_date_range(assets: &[serde_json::Value]) -> (Option<String>, Option<String>) {
+    let mut dates: Vec<String> = assets
+        .iter()
+        .filter_map(|asset| asset.get("localDateTime").and_then(|value| value.as_str()))
+        .map(str::to_owned)
+        .collect();
+    dates.sort();
+    (dates.first().cloned(), dates.last().cloned())
 }
 
 #[derive(Debug, Serialize)]
@@ -420,5 +437,138 @@ impl MapMarkerResponseDto {
             country: exif.country.clone(),
             file_created_at: iso(&asset.file_created_at),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn dt(value: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(value)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn album() -> Album {
+        Album {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000001").unwrap(),
+            owner_id: Uuid::parse_str("10000000-0000-0000-0000-000000000002").unwrap(),
+            album_name: "Trip".to_owned(),
+            description: "Summer".to_owned(),
+            album_thumbnail_asset_id: None,
+            is_activity_enabled: true,
+            order: "desc".to_owned(),
+            created_at: dt("2026-07-14T01:02:03.456Z"),
+            updated_at: dt("2026-07-14T01:02:03.456Z"),
+            deleted_at: None,
+        }
+    }
+
+    fn user() -> User {
+        User {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            email: "user@example.com".to_owned(),
+            password: "hash".to_owned(),
+            name: "User".to_owned(),
+            is_admin: true,
+            avatar_color: Some("primary".to_owned()),
+            profile_image_path: "".to_owned(),
+            storage_label: None,
+            oauth_id: "".to_owned(),
+            quota_size_in_bytes: None,
+            quota_usage_in_bytes: 0,
+            should_change_password: false,
+            created_at: dt("2026-07-14T01:02:03.456Z"),
+            updated_at: dt("2026-07-14T01:02:03.456Z"),
+            deleted_at: None,
+            profile_changed_at: dt("2026-07-14T01:02:03.456Z"),
+        }
+    }
+
+    #[test]
+    fn album_response_sets_start_and_end_dates_from_assets() {
+        let dto = AlbumResponseDto::from_album(
+            &album(),
+            2,
+            vec![
+                json!({"localDateTime": "2025-01-01T01:02:03.456Z"}),
+                json!({"localDateTime": "2023-02-22T05:06:29.716Z"}),
+            ],
+        );
+        let value = serde_json::to_value(dto).unwrap();
+        assert_eq!(value["startDate"], "2023-02-22T05:06:29.716Z");
+        assert_eq!(value["endDate"], "2025-01-01T01:02:03.456Z");
+    }
+
+    #[test]
+    fn album_response_omits_start_and_end_dates_for_empty_assets() {
+        let value =
+            serde_json::to_value(AlbumResponseDto::from_album(&album(), 0, vec![])).unwrap();
+        assert!(value.get("startDate").is_none());
+        assert!(value.get("endDate").is_none());
+    }
+
+    #[test]
+    fn album_response_uses_immich_camel_case_fields() {
+        let value = serde_json::to_value(AlbumResponseDto::from(&album())).unwrap();
+        for field in [
+            "ownerId",
+            "albumName",
+            "albumThumbnailAssetId",
+            "createdAt",
+            "updatedAt",
+            "isActivityEnabled",
+            "assetCount",
+            "albumUsers",
+            "hasSharedLink",
+        ] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
+    }
+
+    #[test]
+    fn user_admin_response_uses_immich_camel_case_fields() {
+        let value = serde_json::to_value(UserAdminResponseDto::from(&user())).unwrap();
+        for field in [
+            "profileImagePath",
+            "avatarColor",
+            "profileChangedAt",
+            "storageLabel",
+            "shouldChangePassword",
+            "isAdmin",
+            "oauthId",
+            "quotaSizeInBytes",
+            "quotaUsageInBytes",
+        ] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
+    }
+
+    #[test]
+    fn login_response_uses_immich_camel_case_fields() {
+        let dto = LoginResponseDto {
+            access_token: "token".to_owned(),
+            user_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            user_email: "user@example.com".to_owned(),
+            name: "User".to_owned(),
+            is_admin: true,
+            profile_image_path: "".to_owned(),
+            should_change_password: false,
+            is_onboarded: true,
+        };
+        let value = serde_json::to_value(dto).unwrap();
+        for field in [
+            "accessToken",
+            "userId",
+            "userEmail",
+            "isAdmin",
+            "profileImagePath",
+            "shouldChangePassword",
+            "isOnboarded",
+        ] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
     }
 }
