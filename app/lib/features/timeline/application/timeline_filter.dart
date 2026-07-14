@@ -46,6 +46,40 @@ class TimelineDateRange {
   }
 }
 
+DateTime timelineSectionStart(DateTime value, TimelineGranularity granularity) {
+  return switch (granularity) {
+    TimelineGranularity.year => DateTime(value.year),
+    TimelineGranularity.month => DateTime(value.year, value.month),
+    TimelineGranularity.day => DateTime(value.year, value.month, value.day),
+  };
+}
+
+TimelineDateRange timelineRangeFor(
+  DateTime value,
+  TimelineGranularity granularity,
+) {
+  final start = timelineSectionStart(value, granularity);
+  return switch (granularity) {
+    TimelineGranularity.year => TimelineDateRange(
+      start: start,
+      end: DateTime(start.year, 12, 31),
+    ),
+    TimelineGranularity.month => TimelineDateRange(
+      start: start,
+      end: DateTime(start.year, start.month + 1, 0),
+    ),
+    TimelineGranularity.day => TimelineDateRange(start: start, end: start),
+  };
+}
+
+String timelineSectionTitle(DateTime value, TimelineGranularity granularity) {
+  return switch (granularity) {
+    TimelineGranularity.year => DateFormat.y().format(value),
+    TimelineGranularity.month => DateFormat.yMMMM().format(value),
+    TimelineGranularity.day => DateFormat.yMMMMEEEEd().format(value),
+  };
+}
+
 TimelineDateRange normalizeDateRange(
   DateTimeRange range,
   TimelineGranularity granularity,

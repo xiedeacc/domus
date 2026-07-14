@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../models/asset.dart';
 import '../application/timeline_filter.dart';
 import '../application/timeline_provider.dart';
 import '../widgets/asset_thumbnail.dart';
@@ -52,24 +53,6 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
     });
   }
 
-  Future<void> _pickRange() async {
-    final now = DateTime.now();
-    final initial = _range == null
-        ? DateTimeRange(
-            start: DateTime(now.year, now.month, now.day),
-            end: DateTime(now.year, now.month, now.day),
-          )
-        : DateTimeRange(start: _range!.start, end: _range!.end);
-    final selected = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(1970),
-      lastDate: DateTime(now.year + 1, 12, 31),
-      initialDateRange: initial,
-    );
-    if (selected == null || !mounted) return;
-    setState(() => _range = normalizeDateRange(selected, _granularity));
-  }
-
   @override
   Widget build(BuildContext context) {
     final buckets = ref.watch(timeBucketsProvider);
@@ -115,6 +98,10 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                         itemBuilder: (context, index) => _BucketSection(
                           bucket: visibleBuckets[index].timeBucket,
                           range: _range,
+                          granularity: _granularity,
+                          onSelectRange: (range) {
+                            setState(() => _range = range);
+                          },
                         ),
                       ),
                     ),
@@ -145,7 +132,6 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                                 }
                               });
                             },
-                            onPickRange: _pickRange,
                             onClearRange: () => setState(() => _range = null),
                           ),
                         ),
@@ -164,14 +150,12 @@ class _TimelineDateControls extends StatelessWidget {
     required this.granularity,
     required this.range,
     required this.onGranularityChanged,
-    required this.onPickRange,
     required this.onClearRange,
   });
 
   final TimelineGranularity granularity;
   final TimelineDateRange? range;
   final ValueChanged<TimelineGranularity> onGranularityChanged;
-  final VoidCallback onPickRange;
   final VoidCallback onClearRange;
 
   @override
@@ -205,26 +189,19 @@ class _TimelineDateControls extends StatelessWidget {
               },
               showSelectedIcon: false,
             );
-            final rangeButton = InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: onPickRange,
-              child: SizedBox(
-                height: 56,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.date_range_outlined),
-                    const SizedBox(width: 12),
-                    Flexible(
-                      child: Text(
-                        range?.label(granularity) ?? 'All dates',
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                  ],
+            final selectedLabel = Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_outline, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    range?.label(granularity) ?? 'Select with checkmarks',
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
-              ),
+              ],
             );
             final clearButton = IconButton(
               tooltip: 'Clear',
@@ -238,7 +215,7 @@ class _TimelineDateControls extends StatelessWidget {
                   granularityPicker,
                   Row(
                     children: [
-                      Expanded(child: rangeButton),
+                      Expanded(child: selectedLabel),
                       clearButton,
                     ],
                   ),
@@ -249,7 +226,7 @@ class _TimelineDateControls extends StatelessWidget {
               children: [
                 granularityPicker,
                 const SizedBox(width: 8),
-                Expanded(child: rangeButton),
+                Expanded(child: selectedLabel),
                 clearButton,
               ],
             );
@@ -261,10 +238,17 @@ class _TimelineDateControls extends StatelessWidget {
 }
 
 class _BucketSection extends ConsumerWidget {
-  const _BucketSection({required this.bucket, required this.range});
+  const _BucketSection({
+    required this.bucket,
+    required this.range,
+    required this.granularity,
+    required this.onSelectRange,
+  });
 
   final String bucket;
   final TimelineDateRange? range;
+  final TimelineGranularity granularity;
+  final ValueChanged<TimelineDateRange> onSelectRange;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -294,35 +278,113 @@ class _BucketSection extends ConsumerWidget {
             ? assets
             : assets.where(range!.includesAsset).toList();
         if (visibleAssets.isEmpty) return const SizedBox.shrink();
+        final sections = _sectionsFor(visibleAssets, granularity, bucket);
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
+            for (final section in sections)
+              _TimelineAssetSection(
+                section: section,
+                selectedRange: range,
+                onSelectRange: onSelectRange,
               ),
-            ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 160,
-                mainAxisSpacing: 2,
-                crossAxisSpacing: 2,
-              ),
-              itemCount: visibleAssets.length,
-              itemBuilder: (context, i) => AssetThumbnail(
-                asset: visibleAssets[i],
-                onTap: () => context.push('/asset/${visibleAssets[i].id}'),
-              ),
-            ),
           ],
         );
       },
     );
   }
+}
+
+class _TimelineAssetSection extends StatelessWidget {
+  const _TimelineAssetSection({
+    required this.section,
+    required this.selectedRange,
+    required this.onSelectRange,
+  });
+
+  final _TimelineSection section;
+  final TimelineDateRange? selectedRange;
+  final ValueChanged<TimelineDateRange> onSelectRange;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected =
+        selectedRange?.start == section.range.start &&
+        selectedRange?.end == section.range.end;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  section.title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Select ${section.title}',
+                onPressed: () => onSelectRange(section.range),
+                icon: Icon(
+                  isSelected ? Icons.check_circle : Icons.check_circle_outline,
+                ),
+              ),
+            ],
+          ),
+        ),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 160,
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 2,
+          ),
+          itemCount: section.assets.length,
+          itemBuilder: (context, i) => AssetThumbnail(
+            asset: section.assets[i],
+            onTap: () => context.push('/asset/${section.assets[i].id}'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimelineSection {
+  const _TimelineSection({
+    required this.title,
+    required this.range,
+    required this.assets,
+  });
+
+  final String title;
+  final TimelineDateRange range;
+  final List<Asset> assets;
+}
+
+List<_TimelineSection> _sectionsFor(
+  List<Asset> assets,
+  TimelineGranularity granularity,
+  String fallbackBucket,
+) {
+  final grouped = <DateTime, List<Asset>>{};
+  final fallbackDate = DateTime.tryParse(fallbackBucket) ?? DateTime.now();
+  for (final asset in assets) {
+    final date = asset.localDateTime ?? fallbackDate;
+    final start = timelineSectionStart(date, granularity);
+    grouped.putIfAbsent(start, () => []).add(asset);
+  }
+  final starts = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+  return [
+    for (final start in starts)
+      _TimelineSection(
+        title: timelineSectionTitle(start, granularity),
+        range: timelineRangeFor(start, granularity),
+        assets: grouped[start]!,
+      ),
+  ];
 }
 
 class _ErrorView extends StatelessWidget {

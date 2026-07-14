@@ -68,6 +68,35 @@ void main() {
     expect(range.includesAsset(outside), isFalse);
   });
 
+  test('selects whole day, month or year from a timeline checkmark', () {
+    final date = DateTime(2026, 7, 14, 18, 30);
+
+    expect(
+      timelineRangeFor(date, TimelineGranularity.day).start,
+      DateTime(2026, 7, 14),
+    );
+    expect(
+      timelineRangeFor(date, TimelineGranularity.day).end,
+      DateTime(2026, 7, 14),
+    );
+    expect(
+      timelineRangeFor(date, TimelineGranularity.month).start,
+      DateTime(2026, 7),
+    );
+    expect(
+      timelineRangeFor(date, TimelineGranularity.month).end,
+      DateTime(2026, 7, 31),
+    );
+    expect(
+      timelineRangeFor(date, TimelineGranularity.year).start,
+      DateTime(2026),
+    );
+    expect(
+      timelineRangeFor(date, TimelineGranularity.year).end,
+      DateTime(2026, 12, 31),
+    );
+  });
+
   test('detects overlapping timeline month buckets', () {
     final range = TimelineDateRange(
       start: DateTime(2024, 6, 15),
