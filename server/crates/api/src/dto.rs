@@ -2,8 +2,10 @@
 //! (camelCase, ISO-8601 timestamps, UUID strings) — clients are generated
 //! from that spec and break on any drift.
 
+use base64::Engine;
 use chrono::{DateTime, Utc};
-use domus_db::entities::{Album, Session, User};
+use domus_common::types::{AssetType, AssetVisibility};
+use domus_db::entities::{Album, Asset, Exif, Memory, Partner, Session, SharedLink, Stack, User};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -132,6 +134,12 @@ pub struct AlbumResponseDto {
 
 impl From<&Album> for AlbumResponseDto {
     fn from(a: &Album) -> Self {
+        Self::from_album(a, 0, vec![])
+    }
+}
+
+impl AlbumResponseDto {
+    pub fn from_album(a: &Album, asset_count: i64, assets: Vec<serde_json::Value>) -> Self {
         Self {
             id: a.id,
             owner_id: a.owner_id,
@@ -142,11 +150,275 @@ impl From<&Album> for AlbumResponseDto {
             updated_at: iso(&a.updated_at),
             is_activity_enabled: a.is_activity_enabled,
             order: a.order.clone(),
-            asset_count: 0,
-            assets: vec![],
+            asset_count,
+            assets,
             album_users: vec![],
             shared: false,
             has_shared_link: false,
         }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExifResponseDto {
+    pub make: Option<String>,
+    pub model: Option<String>,
+    pub exif_image_width: Option<i32>,
+    pub exif_image_height: Option<i32>,
+    pub file_size_in_byte: Option<i64>,
+    pub orientation: Option<String>,
+    pub date_time_original: Option<String>,
+    pub modify_date: Option<String>,
+    pub time_zone: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub country: Option<String>,
+    pub description: Option<String>,
+    pub f_number: Option<f64>,
+    pub focal_length: Option<f64>,
+    pub iso: Option<i32>,
+    pub exposure_time: Option<String>,
+    pub lens_model: Option<String>,
+    pub projection_type: Option<String>,
+    pub rating: Option<i32>,
+    pub fps: Option<f64>,
+}
+
+impl From<&Exif> for ExifResponseDto {
+    fn from(e: &Exif) -> Self {
+        Self {
+            make: e.make.clone(),
+            model: e.model.clone(),
+            exif_image_width: e.exif_image_width,
+            exif_image_height: e.exif_image_height,
+            file_size_in_byte: e.file_size_in_byte,
+            orientation: e.orientation.clone(),
+            date_time_original: e.date_time_original.as_ref().map(iso),
+            modify_date: e.modify_date.as_ref().map(iso),
+            time_zone: e.time_zone.clone(),
+            latitude: e.latitude,
+            longitude: e.longitude,
+            city: e.city.clone(),
+            state: e.state.clone(),
+            country: e.country.clone(),
+            description: e.description.clone(),
+            f_number: e.f_number,
+            focal_length: e.focal_length,
+            iso: e.iso,
+            exposure_time: e.exposure_time.clone(),
+            lens_model: e.lens_model.clone(),
+            projection_type: e.projection_type.clone(),
+            rating: e.rating,
+            fps: e.fps,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetResponseDto {
+    pub id: Uuid,
+    pub device_asset_id: String,
+    pub owner_id: Uuid,
+    pub device_id: String,
+    pub library_id: Option<Uuid>,
+    #[serde(rename = "type")]
+    pub asset_type: AssetType,
+    pub original_path: String,
+    pub original_file_name: String,
+    pub resized: bool,
+    pub thumbhash: Option<String>,
+    pub file_created_at: String,
+    pub file_modified_at: String,
+    pub local_date_time: String,
+    pub updated_at: String,
+    pub is_favorite: bool,
+    pub is_archived: bool,
+    pub is_trashed: bool,
+    pub visibility: AssetVisibility,
+    pub duration: Option<String>,
+    pub live_photo_video_id: Option<Uuid>,
+    pub stack_id: Option<Uuid>,
+    pub exif_info: Option<ExifResponseDto>,
+    pub people: Vec<serde_json::Value>,
+    pub tags: Vec<serde_json::Value>,
+    pub checksum: String,
+}
+
+impl AssetResponseDto {
+    pub fn from_asset(asset: &Asset, exif: Option<&Exif>) -> Self {
+        Self {
+            id: asset.id,
+            device_asset_id: asset.device_asset_id.clone(),
+            owner_id: asset.owner_id,
+            device_id: asset.device_id.clone(),
+            library_id: asset.library_id,
+            asset_type: asset.asset_type,
+            original_path: asset.original_path.clone(),
+            original_file_name: asset.original_file_name.clone(),
+            resized: false,
+            thumbhash: asset
+                .thumbhash
+                .as_ref()
+                .map(|bytes| base64::engine::general_purpose::STANDARD.encode(bytes)),
+            file_created_at: iso(&asset.file_created_at),
+            file_modified_at: iso(&asset.file_modified_at),
+            local_date_time: iso(&asset.local_date_time),
+            updated_at: iso(&asset.updated_at),
+            is_favorite: asset.is_favorite,
+            is_archived: asset.visibility == AssetVisibility::Archive,
+            is_trashed: asset.deleted_at.is_some(),
+            visibility: asset.visibility,
+            duration: asset.duration.clone(),
+            live_photo_video_id: asset.live_photo_video_id,
+            stack_id: asset.stack_id,
+            exif_info: exif.map(ExifResponseDto::from),
+            people: vec![],
+            tags: vec![],
+            checksum: base64::engine::general_purpose::STANDARD.encode(&asset.checksum),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryResponseDto {
+    pub id: Uuid,
+    pub owner_id: Uuid,
+    #[serde(rename = "type")]
+    pub memory_type: String,
+    pub data: serde_json::Value,
+    pub memory_at: String,
+    pub is_saved: bool,
+    pub seen_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub assets: Vec<AssetResponseDto>,
+}
+
+impl MemoryResponseDto {
+    pub fn from_memory(memory: &Memory, assets: Vec<AssetResponseDto>) -> Self {
+        Self {
+            id: memory.id,
+            owner_id: memory.owner_id,
+            memory_type: memory.memory_type.clone(),
+            data: memory.data.clone(),
+            memory_at: iso(&memory.memory_at),
+            is_saved: memory.is_saved,
+            seen_at: memory.seen_at.as_ref().map(iso),
+            created_at: iso(&memory.created_at),
+            updated_at: iso(&memory.updated_at),
+            assets,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartnerResponseDto {
+    pub shared_by_id: Uuid,
+    pub shared_with_id: Uuid,
+    pub in_timeline: bool,
+    pub created_at: String,
+}
+
+impl From<&Partner> for PartnerResponseDto {
+    fn from(partner: &Partner) -> Self {
+        Self {
+            shared_by_id: partner.shared_by_id,
+            shared_with_id: partner.shared_with_id,
+            in_timeline: partner.in_timeline,
+            created_at: iso(&partner.created_at),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackResponseDto {
+    pub id: Uuid,
+    pub owner_id: Uuid,
+    pub primary_asset_id: Uuid,
+    pub assets: Vec<AssetResponseDto>,
+}
+
+impl StackResponseDto {
+    pub fn from_stack(stack: &Stack, assets: Vec<AssetResponseDto>) -> Self {
+        Self {
+            id: stack.id,
+            owner_id: stack.owner_id,
+            primary_asset_id: stack.primary_asset_id,
+            assets,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SharedLinkResponseDto {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub key: String,
+    pub slug: Option<String>,
+    #[serde(rename = "type")]
+    pub link_type: domus_common::types::SharedLinkType,
+    pub album_id: Option<Uuid>,
+    pub description: Option<String>,
+    pub allow_upload: bool,
+    pub allow_download: bool,
+    pub show_exif: bool,
+    pub expires_at: Option<String>,
+    pub created_at: String,
+    pub assets: Vec<AssetResponseDto>,
+}
+
+impl SharedLinkResponseDto {
+    pub fn from_link(link: &SharedLink, assets: Vec<AssetResponseDto>) -> Self {
+        Self {
+            id: link.id,
+            user_id: link.user_id,
+            key: hex::encode(&link.key),
+            slug: link.slug.clone(),
+            link_type: link.link_type,
+            album_id: link.album_id,
+            description: link.description.clone(),
+            allow_upload: link.allow_upload,
+            allow_download: link.allow_download,
+            show_exif: link.show_exif,
+            expires_at: link.expires_at.as_ref().map(iso),
+            created_at: iso(&link.created_at),
+            assets,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapMarkerResponseDto {
+    pub id: Uuid,
+    pub asset_id: Uuid,
+    pub lat: f64,
+    pub lon: f64,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub country: Option<String>,
+    pub file_created_at: String,
+}
+
+impl MapMarkerResponseDto {
+    pub fn from_asset_exif(asset: &Asset, exif: &Exif) -> Option<Self> {
+        Some(Self {
+            id: asset.id,
+            asset_id: asset.id,
+            lat: exif.latitude?,
+            lon: exif.longitude?,
+            city: exif.city.clone(),
+            state: exif.state.clone(),
+            country: exif.country.clone(),
+            file_created_at: iso(&asset.file_created_at),
+        })
     }
 }

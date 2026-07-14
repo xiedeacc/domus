@@ -9,11 +9,24 @@ import '../widgets/asset_thumbnail.dart';
 /// Photo timeline: one section per month bucket, thumbnails in a grid.
 /// The full implementation virtualizes buckets and adds a drag scrubber;
 /// the skeleton renders eagerly.
-class TimelinePage extends ConsumerWidget {
+class TimelinePage extends ConsumerStatefulWidget {
   const TimelinePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TimelinePage> createState() => _TimelinePageState();
+}
+
+class _TimelinePageState extends ConsumerState<TimelinePage> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final buckets = ref.watch(timeBucketsProvider);
 
     return Scaffold(
@@ -35,10 +48,16 @@ class TimelinePage extends ConsumerWidget {
         error: (e, _) => _ErrorView(message: '$e'),
         data: (buckets) => buckets.isEmpty
             ? const Center(child: Text('No photos yet'))
-            : ListView.builder(
-                itemCount: buckets.length,
-                itemBuilder: (context, index) =>
-                    _BucketSection(bucket: buckets[index].timeBucket),
+            : Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                interactive: true,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: buckets.length,
+                  itemBuilder: (context, index) =>
+                      _BucketSection(bucket: buckets[index].timeBucket),
+                ),
               ),
       ),
     );
@@ -53,8 +72,9 @@ class _BucketSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final assets = ref.watch(bucketAssetsProvider(bucket));
-    final title = DateFormat.yMMMM()
-        .format(DateTime.tryParse(bucket) ?? DateTime.now());
+    final title = DateFormat.yMMMM().format(
+      DateTime.tryParse(bucket) ?? DateTime.now(),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,10 +88,8 @@ class _BucketSection extends ConsumerWidget {
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (e, _) => Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text('$e'),
-          ),
+          error: (e, _) =>
+              Padding(padding: const EdgeInsets.all(12), child: Text('$e')),
           data: (assets) => GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

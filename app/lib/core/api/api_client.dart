@@ -37,10 +37,12 @@ class ApiClient {
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(minutes: 5),
-  ));
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(minutes: 5),
+    ),
+  );
   final client = ApiClient(dio: dio);
 
   // Restore persisted server + token so cold starts stay logged in.

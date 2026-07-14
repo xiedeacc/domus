@@ -1,8 +1,8 @@
+use crate::entities::Notification;
 use domus_common::{Error, Result};
 use sqlx::PgPool;
 #[allow(unused_imports)]
 use uuid::Uuid;
-use crate::entities::Notification;
 
 #[derive(Clone)]
 pub struct NotificationRepository {
@@ -15,8 +15,14 @@ impl NotificationRepository {
         Self { pool }
     }
 
-    pub async fn list_for_user(&self, _user_id: Uuid, _unread_only: bool) -> Result<Vec<Notification>> {
-        Err(Error::NotImplemented("NotificationRepository::list_for_user"))
+    pub async fn list_for_user(
+        &self,
+        _user_id: Uuid,
+        _unread_only: bool,
+    ) -> Result<Vec<Notification>> {
+        Err(Error::NotImplemented(
+            "NotificationRepository::list_for_user",
+        ))
     }
 
     pub async fn mark_read(&self, _ids: &[Uuid]) -> Result<()> {

@@ -6,6 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use domus_common::Error;
 
+#[derive(Debug)]
 pub struct ApiError(pub Error);
 
 impl From<Error> for ApiError {

@@ -24,4 +24,6 @@ tracing = { workspace = true }
 futures = { workspace = true }
 sha1 = { workspace = true }
 hex = { workspace = true }
+base64 = { workspace = true }
 mime_guess = { workspace = true }
+reqwest = { workspace = true }

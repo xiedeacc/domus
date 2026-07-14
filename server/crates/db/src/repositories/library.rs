@@ -1,8 +1,8 @@
+use crate::entities::Library;
 use domus_common::{Error, Result};
 use sqlx::PgPool;
 #[allow(unused_imports)]
 use uuid::Uuid;
-use crate::entities::Library;
 
 #[derive(Clone)]
 pub struct LibraryRepository {
@@ -19,7 +19,12 @@ impl LibraryRepository {
         Err(Error::NotImplemented("LibraryRepository::list"))
     }
 
-    pub async fn create(&self, _owner_id: Uuid, _name: &str, _import_paths: &[String]) -> Result<Library> {
+    pub async fn create(
+        &self,
+        _owner_id: Uuid,
+        _name: &str,
+        _import_paths: &[String],
+    ) -> Result<Library> {
         Err(Error::NotImplemented("LibraryRepository::create"))
     }
 

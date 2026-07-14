@@ -15,9 +15,9 @@ class AppSettings {
   bool get hasSession => serverUrl != null && accessToken != null;
 
   AppSettings copyWith({String? serverUrl, String? accessToken}) => AppSettings(
-        serverUrl: serverUrl ?? this.serverUrl,
-        accessToken: accessToken ?? this.accessToken,
-      );
+    serverUrl: serverUrl ?? this.serverUrl,
+    accessToken: accessToken ?? this.accessToken,
+  );
 }
 
 class AppSettingsNotifier extends Notifier<AppSettings> {
@@ -52,5 +52,6 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   }
 }
 
-final appSettingsProvider =
-    NotifierProvider<AppSettingsNotifier, AppSettings>(AppSettingsNotifier.new);
+final appSettingsProvider = NotifierProvider<AppSettingsNotifier, AppSettings>(
+  AppSettingsNotifier.new,
+);

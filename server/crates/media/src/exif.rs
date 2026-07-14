@@ -4,6 +4,7 @@
 use domus_common::{Error, Result};
 use serde::Deserialize;
 use std::path::Path;
+use tokio::process::Command;
 
 /// Subset of exiftool output Domus consumes (mirrors ImmichTags).
 #[derive(Debug, Default, Deserialize)]
@@ -41,7 +42,21 @@ pub struct ExifData {
 }
 
 /// Run `exiftool -json` on the file and parse the result.
-pub async fn extract(_path: &Path) -> Result<ExifData> {
-    // TODO: spawn `exiftool -json -n <path>` and deserialize.
-    Err(Error::NotImplemented("exif::extract"))
+pub async fn extract(path: &Path) -> Result<ExifData> {
+    let output = Command::new("exiftool")
+        .arg("-json")
+        .arg("-n")
+        .arg(path)
+        .output()
+        .await
+        .map_err(|e| Error::Internal(e.into()))?;
+    if !output.status.success() {
+        return Err(Error::Internal(anyhow::anyhow!(
+            "exiftool failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let mut values: Vec<ExifData> =
+        serde_json::from_slice(&output.stdout).map_err(|e| Error::Internal(e.into()))?;
+    Ok(values.pop().unwrap_or_default())
 }

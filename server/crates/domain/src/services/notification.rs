@@ -16,8 +16,15 @@ impl NotificationService {
         Self { repos }
     }
 
-    pub async fn list(&self, user_id: Uuid, unread_only: bool) -> Result<Vec<domus_db::entities::Notification>> {
-        self.repos.notification.list_for_user(user_id, unread_only).await
+    pub async fn list(
+        &self,
+        user_id: Uuid,
+        unread_only: bool,
+    ) -> Result<Vec<domus_db::entities::Notification>> {
+        self.repos
+            .notification
+            .list_for_user(user_id, unread_only)
+            .await
     }
 
     pub async fn mark_read(&self, ids: &[Uuid]) -> Result<()> {

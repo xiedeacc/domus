@@ -15,7 +15,10 @@ use serde::Deserialize;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sync/stream", post(sync_stream))
-        .route("/sync/ack", get(get_acks).post(send_ack).delete(delete_acks))
+        .route(
+            "/sync/ack",
+            get(get_acks).post(send_ack).delete(delete_acks),
+        )
         // Legacy v1 sync endpoints (deprecated but still served):
         .route("/sync/full-sync", post(super::not_implemented))
         .route("/sync/delta-sync", post(super::not_implemented))
@@ -56,7 +59,10 @@ async fn sync_stream(
         .unwrap())
 }
 
-async fn get_acks(State(state): State<AppState>, Auth(ctx): Auth) -> ApiResult<Json<serde_json::Value>> {
+async fn get_acks(
+    State(state): State<AppState>,
+    Auth(ctx): Auth,
+) -> ApiResult<Json<serde_json::Value>> {
     let session_id = ctx
         .session_id
         .ok_or_else(|| domus_common::Error::BadRequest("sync requires a session".into()))?;
@@ -98,6 +104,10 @@ async fn delete_acks(
     let session_id = ctx
         .session_id
         .ok_or_else(|| domus_common::Error::BadRequest("sync requires a session".into()))?;
-    state.services.sync.delete_acks(session_id, &dto.types).await?;
+    state
+        .services
+        .sync
+        .delete_acks(session_id, &dto.types)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }

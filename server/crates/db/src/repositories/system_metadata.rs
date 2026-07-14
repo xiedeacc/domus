@@ -1,11 +1,9 @@
-use domus_common::{Error, Result};
+use super::db_err;
+use domus_common::Result;
 use sqlx::PgPool;
-#[allow(unused_imports)]
-use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct SystemMetadataRepository {
-    #[allow(dead_code)]
     pool: PgPool,
 }
 
@@ -14,11 +12,25 @@ impl SystemMetadataRepository {
         Self { pool }
     }
 
-    pub async fn get(&self, _key: &str) -> Result<Option<serde_json::Value>> {
-        Err(Error::NotImplemented("SystemMetadataRepository::get"))
+    pub async fn get(&self, key: &str) -> Result<Option<serde_json::Value>> {
+        sqlx::query_scalar(r#"SELECT value FROM system_metadata WHERE key = $1"#)
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)
     }
 
-    pub async fn set(&self, _key: &str, _value: serde_json::Value) -> Result<()> {
-        Err(Error::NotImplemented("SystemMetadataRepository::set"))
+    pub async fn set(&self, key: &str, value: serde_json::Value) -> Result<()> {
+        sqlx::query(
+            r#"INSERT INTO system_metadata (key, value)
+               VALUES ($1, $2)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"#,
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
     }
 }

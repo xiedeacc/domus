@@ -15,10 +15,10 @@ class User {
   final String profileImagePath;
 
   factory User.fromJson(Map<String, dynamic> json) => User(
-        id: (json['userId'] ?? json['id']) as String,
-        email: (json['userEmail'] ?? json['email']) as String,
-        name: json['name'] as String,
-        isAdmin: (json['isAdmin'] as bool?) ?? false,
-        profileImagePath: (json['profileImagePath'] as String?) ?? '',
-      );
+    id: (json['userId'] ?? json['id']) as String,
+    email: (json['userEmail'] ?? json['email']) as String,
+    name: json['name'] as String,
+    isAdmin: (json['isAdmin'] as bool?) ?? false,
+    profileImagePath: (json['profileImagePath'] as String?) ?? '',
+  );
 }

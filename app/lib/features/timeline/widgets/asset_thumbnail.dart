@@ -39,8 +39,11 @@ class AssetThumbnail extends ConsumerWidget {
             const Positioned(
               top: 4,
               right: 4,
-              child: Icon(Icons.play_circle_outline,
-                  color: Colors.white, size: 20),
+              child: Icon(
+                Icons.play_circle_outline,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           if (asset.isFavorite)
             const Positioned(

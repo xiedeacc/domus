@@ -15,9 +15,7 @@ use tracing::info;
 
 /// Build the socket.io layer and its event wiring.
 pub fn build() -> (SocketIoLayer, SocketIo) {
-    let (layer, io) = SocketIo::builder()
-        .req_path("/api/socket.io")
-        .build_layer();
+    let (layer, io) = SocketIo::builder().req_path("/api/socket.io").build_layer();
 
     io.ns("/", |socket: SocketRef| {
         // TODO: authenticate the handshake (cookie / bearer / api key) and

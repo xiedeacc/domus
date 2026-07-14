@@ -9,7 +9,9 @@ final timeBucketsProvider = FutureProvider<List<TimeBucket>>((ref) {
 });
 
 /// Assets of a single bucket, fetched lazily as the user scrolls.
-final bucketAssetsProvider =
-    FutureProvider.family<List<Asset>, String>((ref, bucket) {
+final bucketAssetsProvider = FutureProvider.family<List<Asset>, String>((
+  ref,
+  bucket,
+) {
   return ref.watch(timelineRepositoryProvider).getBucketAssets(bucket);
 });

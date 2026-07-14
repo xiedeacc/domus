@@ -47,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
         let app = build_router(state).layer(socket_layer);
 
         let addr = format!("{}:{}", config.host, config.port);
+        spawn_discovery_responder(config.port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         info!("listening on http://{addr}");
         axum::serve(listener, app).await?;
@@ -61,4 +62,38 @@ async fn main() -> anyhow::Result<()> {
 
 async fn futures_park() {
     let () = std::future::pending().await;
+}
+
+fn spawn_discovery_responder(port: u16) {
+    tokio::spawn(async move {
+        let Ok(socket) = tokio::net::UdpSocket::bind(("0.0.0.0", port)).await else {
+            return;
+        };
+        let mut buf = [0u8; 128];
+        loop {
+            let Ok((len, peer)) = socket.recv_from(&mut buf).await else {
+                continue;
+            };
+            if &buf[..len] != b"DOMUS_DISCOVER_V1" {
+                continue;
+            }
+            let host = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                Ok(probe) => {
+                    let _ = probe.connect(peer).await;
+                    probe
+                        .local_addr()
+                        .map(|addr| addr.ip().to_string())
+                        .unwrap_or_else(|_| "127.0.0.1".to_owned())
+                }
+                Err(_) => "127.0.0.1".to_owned(),
+            };
+            let body = serde_json::json!({
+                "name": "Domus",
+                "url": format!("http://{host}:{port}"),
+                "api": format!("http://{host}:{port}/api"),
+            })
+            .to_string();
+            let _ = socket.send_to(body.as_bytes(), peer).await;
+        }
+    });
 }

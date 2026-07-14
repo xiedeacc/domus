@@ -1,9 +1,7 @@
 //! Hierarchical tags (value = "a/b/c" path).
 
-#[allow(unused_imports)]
-use domus_common::{Error, Result};
+use domus_common::Result;
 use domus_db::Repositories;
-#[allow(unused_imports)]
 use uuid::Uuid;
 
 pub struct TagService {
@@ -24,7 +22,46 @@ impl TagService {
         self.repos.tag.upsert_value(user_id, value).await
     }
 
-    pub async fn tag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<()> {
+    pub async fn create(
+        &self,
+        user_id: Uuid,
+        name: &str,
+        parent_id: Option<Uuid>,
+        color: Option<&str>,
+    ) -> Result<domus_db::entities::Tag> {
+        let value = if let Some(parent_id) = parent_id {
+            let parent = self.repos.tag.get(parent_id).await?;
+            format!("{}/{}", parent.value, name)
+        } else {
+            name.to_owned()
+        };
+        self.repos
+            .tag
+            .create(user_id, &value, parent_id, color)
+            .await
+    }
+
+    pub async fn get(&self, id: Uuid) -> Result<domus_db::entities::Tag> {
+        self.repos.tag.get(id).await
+    }
+
+    pub async fn update_color(
+        &self,
+        id: Uuid,
+        color: Option<&str>,
+    ) -> Result<domus_db::entities::Tag> {
+        self.repos.tag.update_color(id, color).await
+    }
+
+    pub async fn tag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<u64> {
         self.repos.tag.tag_assets(tag_id, asset_ids).await
+    }
+
+    pub async fn untag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<u64> {
+        self.repos.tag.untag_assets(tag_id, asset_ids).await
+    }
+
+    pub async fn delete(&self, id: Uuid) -> Result<()> {
+        self.repos.tag.delete(id).await
     }
 }

@@ -15,6 +15,7 @@ pub mod libraries;
 pub mod map;
 pub mod memories;
 pub mod notifications;
+pub mod oauth;
 pub mod partners;
 pub mod people;
 pub mod queues;
@@ -38,5 +39,7 @@ use domus_common::Error;
 /// Placeholder handler for routes that exist in the protocol but are not
 /// implemented yet — answers 501 with the Immich error envelope.
 pub async fn not_implemented() -> ApiError {
-    ApiError(Error::NotImplemented("this endpoint is not implemented yet"))
+    ApiError(Error::NotImplemented(
+        "this endpoint is not implemented yet",
+    ))
 }

@@ -119,7 +119,9 @@ impl JobName {
         match self {
             MetadataExtraction => QueueName::MetadataExtraction,
             SidecarDiscovery => QueueName::Sidecar,
-            GeneratePreview | GenerateThumbnail | GenerateThumbhash => QueueName::ThumbnailGeneration,
+            GeneratePreview | GenerateThumbnail | GenerateThumbhash => {
+                QueueName::ThumbnailGeneration
+            }
             VideoConversion => QueueName::VideoConversion,
             StorageTemplateMigration => QueueName::StorageTemplateMigration,
             LibraryScan | LibrarySyncFiles => QueueName::Library,

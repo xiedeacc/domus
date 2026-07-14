@@ -73,6 +73,7 @@ pub struct Asset {
     pub live_photo_video_id: Option<Uuid>,
     pub stack_id: Option<Uuid>,
     pub duration: Option<String>,
+    pub thumbhash: Option<Vec<u8>>,
     pub file_created_at: DateTime<Utc>,
     pub file_modified_at: DateTime<Utc>,
     pub local_date_time: DateTime<Utc>,

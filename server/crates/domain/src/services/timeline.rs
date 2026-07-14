@@ -34,7 +34,14 @@ impl TimelineService {
     }
 
     /// Columnar asset payload for one bucket.
-    pub async fn bucket_assets(&self, bucket: &str, query: TimeBucketQuery) -> Result<serde_json::Value> {
-        self.repos.timeline.get_time_bucket_assets(bucket, query).await
+    pub async fn bucket_assets(
+        &self,
+        bucket: &str,
+        query: TimeBucketQuery,
+    ) -> Result<serde_json::Value> {
+        self.repos
+            .timeline
+            .get_time_bucket_assets(bucket, query)
+            .await
     }
 }

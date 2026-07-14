@@ -59,7 +59,11 @@ async fn get_time_buckets(
     Auth(ctx): Auth,
     Query(params): Query<TimelineParams>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let buckets = state.services.timeline.buckets(params.to_query(ctx.user_id)).await?;
+    let buckets = state
+        .services
+        .timeline
+        .buckets(params.to_query(ctx.user_id))
+        .await?;
     Ok(Json(serde_json::to_value(buckets).unwrap()))
 }
 

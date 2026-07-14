@@ -29,6 +29,7 @@ pub struct Services {
     pub notification: Arc<services::notification::NotificationService>,
     pub trash: Arc<services::trash::TrashService>,
     pub sync: Arc<services::sync::SyncService>,
+    pub system_config: Arc<services::system_config::SystemConfigService>,
     pub server: Arc<services::server::ServerService>,
     pub job_admin: Arc<services::job_admin::JobAdminService>,
 }
@@ -38,7 +39,10 @@ impl Services {
         Self {
             auth: Arc::new(services::auth::AuthService::new(repos.clone())),
             user: Arc::new(services::user::UserService::new(repos.clone())),
-            asset: Arc::new(services::asset::AssetService::new(repos.clone(), queue.clone())),
+            asset: Arc::new(services::asset::AssetService::new(
+                repos.clone(),
+                queue.clone(),
+            )),
             asset_media: Arc::new(services::asset_media::AssetMediaService::new(
                 repos.clone(),
                 queue.clone(),
@@ -52,11 +56,22 @@ impl Services {
             shared_link: Arc::new(services::shared_link::SharedLinkService::new(repos.clone())),
             tag: Arc::new(services::tag::TagService::new(repos.clone())),
             stack: Arc::new(services::stack::StackService::new(repos.clone())),
-            library: Arc::new(services::library::LibraryService::new(repos.clone(), queue.clone())),
+            library: Arc::new(services::library::LibraryService::new(
+                repos.clone(),
+                queue.clone(),
+            )),
             activity: Arc::new(services::activity::ActivityService::new(repos.clone())),
-            notification: Arc::new(services::notification::NotificationService::new(repos.clone())),
-            trash: Arc::new(services::trash::TrashService::new(repos.clone(), queue.clone())),
+            notification: Arc::new(services::notification::NotificationService::new(
+                repos.clone(),
+            )),
+            trash: Arc::new(services::trash::TrashService::new(
+                repos.clone(),
+                queue.clone(),
+            )),
             sync: Arc::new(services::sync::SyncService::new(repos.clone())),
+            system_config: Arc::new(services::system_config::SystemConfigService::new(
+                repos.clone(),
+            )),
             server: Arc::new(services::server::ServerService::new(repos.clone())),
             job_admin: Arc::new(services::job_admin::JobAdminService::new(queue)),
         }

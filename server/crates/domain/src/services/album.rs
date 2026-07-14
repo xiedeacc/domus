@@ -16,7 +16,11 @@ impl AlbumService {
         Self { repos }
     }
 
-    pub async fn list(&self, user_id: Uuid, shared: Option<bool>) -> Result<Vec<domus_db::entities::Album>> {
+    pub async fn list(
+        &self,
+        user_id: Uuid,
+        shared: Option<bool>,
+    ) -> Result<Vec<domus_db::entities::Album>> {
         self.repos.album.list_for_user(user_id, shared).await
     }
 
@@ -24,7 +28,20 @@ impl AlbumService {
         self.repos.album.get(id).await
     }
 
-    pub async fn create(&self, owner_id: Uuid, name: &str, description: &str) -> Result<domus_db::entities::Album> {
+    pub async fn asset_count(&self, id: Uuid) -> Result<i64> {
+        self.repos.album.asset_count(id).await
+    }
+
+    pub async fn assets(&self, id: Uuid) -> Result<Vec<domus_db::entities::Asset>> {
+        self.repos.asset.list_by_album(id).await
+    }
+
+    pub async fn create(
+        &self,
+        owner_id: Uuid,
+        name: &str,
+        description: &str,
+    ) -> Result<domus_db::entities::Album> {
         self.repos.album.create(owner_id, name, description).await
     }
 
@@ -34,6 +51,18 @@ impl AlbumService {
 
     pub async fn remove_assets(&self, album_id: Uuid, asset_ids: &[Uuid]) -> Result<()> {
         self.repos.album.remove_assets(album_id, asset_ids).await
+    }
+
+    pub async fn add_users(&self, album_id: Uuid, users: &[(Uuid, String)]) -> Result<()> {
+        self.repos.album.add_users(album_id, users).await
+    }
+
+    pub async fn update_user(&self, album_id: Uuid, user_id: Uuid, role: &str) -> Result<()> {
+        self.repos.album.update_user(album_id, user_id, role).await
+    }
+
+    pub async fn remove_user(&self, album_id: Uuid, user_id: Uuid) -> Result<()> {
+        self.repos.album.remove_user(album_id, user_id).await
     }
 
     pub async fn delete(&self, id: Uuid) -> Result<()> {

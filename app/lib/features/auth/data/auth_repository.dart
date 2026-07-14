@@ -10,7 +10,9 @@ class AuthRepository {
 
   /// POST /auth/login → LoginResponseDto (accessToken + user fields).
   Future<({User user, String accessToken})> login(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
     final response = await _api.dio.post<Map<String, dynamic>>(
       '/auth/login',
       data: {'email': email, 'password': password},
@@ -23,6 +25,33 @@ class AuthRepository {
   }
 
   Future<void> logout() => _api.dio.post('/auth/logout');
+
+  Future<String> oauthAuthorize({
+    required String redirectUri,
+    required String state,
+  }) async {
+    final response = await _api.dio.post<Map<String, dynamic>>(
+      '/oauth/authorize',
+      data: {'redirectUri': redirectUri, 'state': state},
+    );
+    return response.data!['url'] as String;
+  }
+
+  Future<({User user, String accessToken})> oauthCallback({
+    required String code,
+    required String redirectUri,
+    String? state,
+  }) async {
+    final response = await _api.dio.post<Map<String, dynamic>>(
+      '/oauth/callback',
+      data: {'code': code, 'redirectUri': redirectUri, 'state': state},
+    );
+    final body = response.data!;
+    return (
+      user: User.fromJson(body),
+      accessToken: body['accessToken'] as String,
+    );
+  }
 
   /// GET /users/me — also used to validate a restored token.
   Future<User> currentUser() async {
@@ -41,5 +70,6 @@ class AuthRepository {
   }
 }
 
-final authRepositoryProvider =
-    Provider((ref) => AuthRepository(ref.watch(apiClientProvider)));
+final authRepositoryProvider = Provider(
+  (ref) => AuthRepository(ref.watch(apiClientProvider)),
+);

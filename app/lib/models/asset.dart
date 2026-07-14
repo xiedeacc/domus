@@ -10,8 +10,10 @@ class Asset {
     this.duration,
     this.isFavorite = false,
     this.isTrashed = false,
+    this.isArchived = false,
     this.width,
     this.height,
+    this.exifInfo,
   });
 
   final String id;
@@ -23,26 +25,31 @@ class Asset {
   final String? duration;
   final bool isFavorite;
   final bool isTrashed;
+  final bool isArchived;
   final int? width;
   final int? height;
+  final Map<String, dynamic>? exifInfo;
 
   bool get isVideo => type == 'VIDEO';
 
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
-        id: json['id'] as String,
-        type: json['type'] as String,
-        ownerId: json['ownerId'] as String,
-        originalFileName: (json['originalFileName'] as String?) ?? '',
-        thumbhash: json['thumbhash'] as String?,
-        localDateTime: json['localDateTime'] != null
-            ? DateTime.tryParse(json['localDateTime'] as String)
-            : null,
-        duration: json['duration']?.toString(),
-        isFavorite: (json['isFavorite'] as bool?) ?? false,
-        isTrashed: (json['isTrashed'] as bool?) ?? false,
-        width: json['width'] as int?,
-        height: json['height'] as int?,
-      );
+    id: json['id'] as String,
+    type: json['type'] as String,
+    ownerId: json['ownerId'] as String,
+    originalFileName: (json['originalFileName'] as String?) ?? '',
+    thumbhash: json['thumbhash'] as String?,
+    localDateTime: json['localDateTime'] != null
+        ? DateTime.tryParse(json['localDateTime'] as String)
+        : null,
+    duration: json['duration']?.toString(),
+    isFavorite: (json['isFavorite'] as bool?) ?? false,
+    isTrashed: (json['isTrashed'] as bool?) ?? false,
+    isArchived:
+        (json['isArchived'] as bool?) ?? (json['visibility'] == 'archive'),
+    width: json['width'] as int?,
+    height: json['height'] as int?,
+    exifInfo: json['exifInfo'] as Map<String, dynamic>?,
+  );
 }
 
 /// One month bucket from GET /timeline/buckets.
@@ -53,7 +60,7 @@ class TimeBucket {
   final int count;
 
   factory TimeBucket.fromJson(Map<String, dynamic> json) => TimeBucket(
-        timeBucket: json['timeBucket'] as String,
-        count: json['count'] as int,
-      );
+    timeBucket: json['timeBucket'] as String,
+    count: json['count'] as int,
+  );
 }

@@ -44,7 +44,9 @@ pub struct StorageCore {
 
 impl StorageCore {
     pub fn new(media_root: impl Into<PathBuf>) -> Self {
-        Self { media_root: media_root.into() }
+        Self {
+            media_root: media_root.into(),
+        }
     }
 
     pub fn folder(&self, folder: StorageFolder) -> PathBuf {
@@ -65,6 +67,41 @@ impl StorageCore {
             .join(a)
             .join(b)
             .join(format!("{asset_id}.{ext}"))
+    }
+
+    pub fn library_template_path(
+        &self,
+        owner_segment: &str,
+        asset_id: Uuid,
+        original_filename: &str,
+        taken_at: chrono::DateTime<chrono::Utc>,
+        template: &str,
+    ) -> PathBuf {
+        use chrono::Datelike;
+        let filename = sanitize_segment(original_filename);
+        let stem = Path::new(original_filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(sanitize_segment)
+            .unwrap_or_else(|| asset_id.to_string());
+        let ext = Path::new(original_filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .unwrap_or_else(|| "bin".to_owned());
+        let rendered = template
+            .replace("{{y}}", &format!("{:04}", taken_at.year()))
+            .replace("{{yyyy}}", &format!("{:04}", taken_at.year()))
+            .replace("{{MM}}", &format!("{:02}", taken_at.month()))
+            .replace("{{dd}}", &format!("{:02}", taken_at.day()))
+            .replace("{{filename}}", &filename)
+            .replace("{{fileName}}", &filename)
+            .replace("{{name}}", &stem)
+            .replace("{{ext}}", &ext)
+            .replace("{{assetId}}", &asset_id.to_string());
+        self.folder(StorageFolder::Library)
+            .join(sanitize_segment(owner_segment))
+            .join(rendered)
     }
 
     pub fn preview_path(&self, user_id: Uuid, asset_id: Uuid) -> PathBuf {
@@ -97,4 +134,14 @@ impl StorageCore {
     pub fn media_root(&self) -> &Path {
         &self.media_root
     }
+}
+
+fn sanitize_segment(value: &str) -> String {
+    value
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            _ => c,
+        })
+        .collect()
 }

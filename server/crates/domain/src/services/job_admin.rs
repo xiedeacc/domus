@@ -24,7 +24,11 @@ impl JobAdminService {
                 }),
             };
             map.insert(
-                serde_json::to_value(q).unwrap().as_str().unwrap().to_string(),
+                serde_json::to_value(q)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
                 serde_json::json!({
                     "jobCounts": counts,
                     "queueStatus": { "isActive": false, "isPaused": false },

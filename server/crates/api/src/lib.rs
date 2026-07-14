@@ -30,6 +30,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::map::router())
         .merge(routes::memories::router())
         .merge(routes::notifications::router())
+        .merge(routes::oauth::router())
         .merge(routes::partners::router())
         .merge(routes::people::router())
         .merge(routes::queues::router())

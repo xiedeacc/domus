@@ -16,7 +16,11 @@ impl SearchService {
         Self { repos }
     }
 
-    pub async fn search_metadata(&self, user_id: Uuid, filters: serde_json::Value) -> Result<serde_json::Value> {
+    pub async fn search_metadata(
+        &self,
+        user_id: Uuid,
+        filters: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         self.repos.search.search_metadata(&[user_id], filters).await
     }
 

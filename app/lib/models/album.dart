@@ -17,11 +17,11 @@ class Album {
   final bool shared;
 
   factory Album.fromJson(Map<String, dynamic> json) => Album(
-        id: json['id'] as String,
-        albumName: json['albumName'] as String,
-        assetCount: (json['assetCount'] as int?) ?? 0,
-        description: (json['description'] as String?) ?? '',
-        albumThumbnailAssetId: json['albumThumbnailAssetId'] as String?,
-        shared: (json['shared'] as bool?) ?? false,
-      );
+    id: json['id'] as String,
+    albumName: json['albumName'] as String,
+    assetCount: (json['assetCount'] as int?) ?? 0,
+    description: (json['description'] as String?) ?? '',
+    albumThumbnailAssetId: json['albumThumbnailAssetId'] as String?,
+    shared: (json['shared'] as bool?) ?? false,
+  );
 }

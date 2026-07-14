@@ -13,6 +13,7 @@ pub mod server;
 pub mod shared_link;
 pub mod stack;
 pub mod sync;
+pub mod system_config;
 pub mod tag;
 pub mod timeline;
 pub mod trash;

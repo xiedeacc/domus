@@ -27,41 +27,170 @@ impl PgJobQueue {
     }
 
     /// Insert a job. `payload` is typically `{"id": "<assetId>"}`.
-    pub async fn enqueue(&self, _name: JobName, _payload: serde_json::Value) -> Result<Uuid> {
-        // TODO: INSERT INTO jobs (queue, name, payload, status) VALUES (...)
-        //       and NOTIFY the queue channel.
-        Err(Error::NotImplemented("PgJobQueue::enqueue"))
+    pub async fn enqueue(&self, name: JobName, payload: serde_json::Value) -> Result<Uuid> {
+        let queue = queue_name(name.queue())?;
+        let name_value = job_name(&name)?;
+        let (id,): (Uuid,) = sqlx::query_as(
+            r#"INSERT INTO job (queue, name, payload, status)
+               VALUES ($1, $2, $3, 'waiting')
+               RETURNING id"#,
+        )
+        .bind(queue)
+        .bind(name_value)
+        .bind(payload)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(id)
     }
 
     /// Claim the next pending job on `queue`, or None if the queue is empty.
-    pub async fn claim(&self, _queue: QueueName) -> Result<Option<JobData>> {
-        // TODO: UPDATE jobs SET status='active' WHERE id = (
-        //         SELECT id FROM jobs WHERE queue=$1 AND status='waiting'
-        //         ORDER BY "createdAt" LIMIT 1 FOR UPDATE SKIP LOCKED)
-        //       RETURNING ...
-        Err(Error::NotImplemented("PgJobQueue::claim"))
+    pub async fn claim(&self, queue: QueueName) -> Result<Option<JobData>> {
+        let queue = queue_name(queue)?;
+        let row = sqlx::query_as::<_, JobRow>(
+            r#"UPDATE job
+               SET status = 'active', attempts = attempts + 1, "updatedAt" = now()
+               WHERE id = (
+                   SELECT id FROM job
+                   WHERE queue = $1 AND status = 'waiting' AND "runAt" <= now()
+                   ORDER BY "createdAt"
+                   LIMIT 1
+                   FOR UPDATE SKIP LOCKED
+               )
+               RETURNING id, name, payload, attempts"#,
+        )
+        .bind(queue)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?;
+        row.map(TryInto::try_into).transpose()
     }
 
-    pub async fn complete(&self, _id: Uuid) -> Result<()> {
-        Err(Error::NotImplemented("PgJobQueue::complete"))
+    pub async fn complete(&self, id: Uuid) -> Result<()> {
+        sqlx::query(r#"UPDATE job SET status = 'completed', "updatedAt" = now() WHERE id = $1"#)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
     }
 
     /// Mark failed; re-queue with backoff until max attempts is reached.
-    pub async fn fail(&self, _id: Uuid, _error: &str) -> Result<()> {
-        Err(Error::NotImplemented("PgJobQueue::fail"))
+    pub async fn fail(&self, id: Uuid, error: &str) -> Result<()> {
+        sqlx::query(
+            r#"UPDATE job
+               SET status = CASE WHEN attempts >= "maxAttempts" THEN 'failed' ELSE 'waiting' END,
+                   error = $2,
+                   "runAt" = CASE
+                       WHEN attempts >= "maxAttempts" THEN "runAt"
+                       ELSE now() + make_interval(secs => LEAST(300, GREATEST(5, attempts * attempts * 5)))
+                   END,
+                   "updatedAt" = now()
+               WHERE id = $1"#,
+        )
+        .bind(id)
+        .bind(error)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
     }
 
     /// waiting/active/completed/failed/delayed/paused counts for the
     /// /queues admin API.
-    pub async fn counts(&self, _queue: QueueName) -> Result<serde_json::Value> {
-        Err(Error::NotImplemented("PgJobQueue::counts"))
+    pub async fn counts(&self, queue: QueueName) -> Result<serde_json::Value> {
+        let queue = queue_name(queue)?;
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            r#"SELECT status, COUNT(*)::bigint FROM job WHERE queue = $1 GROUP BY status"#,
+        )
+        .bind(queue)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?;
+        let mut value = serde_json::json!({
+            "waiting": 0,
+            "active": 0,
+            "completed": 0,
+            "failed": 0,
+            "delayed": 0,
+            "paused": 0
+        });
+        for (status, count) in rows {
+            value[status] = serde_json::json!(count);
+        }
+        Ok(value)
     }
 
-    pub async fn pause(&self, _queue: QueueName, _paused: bool) -> Result<()> {
-        Err(Error::NotImplemented("PgJobQueue::pause"))
+    pub async fn pause(&self, queue: QueueName, paused: bool) -> Result<()> {
+        let queue = queue_name(queue)?;
+        let (from, to) = if paused {
+            ("waiting", "paused")
+        } else {
+            ("paused", "waiting")
+        };
+        sqlx::query(
+            r#"UPDATE job SET status = $1, "updatedAt" = now() WHERE queue = $2 AND status = $3"#,
+        )
+        .bind(to)
+        .bind(queue)
+        .bind(from)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
     }
 
-    pub async fn clear(&self, _queue: QueueName, _failed_only: bool) -> Result<()> {
-        Err(Error::NotImplemented("PgJobQueue::clear"))
+    pub async fn clear(&self, queue: QueueName, failed_only: bool) -> Result<()> {
+        let queue = queue_name(queue)?;
+        let statuses: &[&str] = if failed_only {
+            &["failed"]
+        } else {
+            &["waiting", "completed", "failed", "delayed", "paused"]
+        };
+        sqlx::query(r#"DELETE FROM job WHERE queue = $1 AND status = ANY($2)"#)
+            .bind(queue)
+            .bind(statuses)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
     }
+}
+
+#[derive(sqlx::FromRow)]
+struct JobRow {
+    id: Uuid,
+    name: String,
+    payload: serde_json::Value,
+    attempts: i32,
+}
+
+impl TryFrom<JobRow> for JobData {
+    type Error = Error;
+
+    fn try_from(row: JobRow) -> Result<Self> {
+        Ok(Self {
+            id: row.id,
+            name: serde_json::from_value(serde_json::Value::String(row.name))
+                .map_err(|e| Error::Database(e.to_string()))?,
+            payload: row.payload,
+            attempts: row.attempts,
+        })
+    }
+}
+
+fn queue_name(queue: QueueName) -> Result<String> {
+    serde_json::to_value(queue)
+        .and_then(serde_json::from_value)
+        .map_err(|e| Error::Database(e.to_string()))
+}
+
+fn job_name(name: &JobName) -> Result<String> {
+    serde_json::to_value(name)
+        .and_then(serde_json::from_value)
+        .map_err(|e| Error::Database(e.to_string()))
+}
+
+fn db_err(e: sqlx::Error) -> Error {
+    Error::Database(e.to_string())
 }

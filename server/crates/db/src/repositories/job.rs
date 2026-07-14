@@ -14,7 +14,12 @@ impl JobRepository {
         Self { pool }
     }
 
-    pub async fn enqueue(&self, _queue: &str, _name: &str, _data: serde_json::Value) -> Result<Uuid> {
+    pub async fn enqueue(
+        &self,
+        _queue: &str,
+        _name: &str,
+        _data: serde_json::Value,
+    ) -> Result<Uuid> {
         Err(Error::NotImplemented("JobRepository::enqueue"))
     }
 

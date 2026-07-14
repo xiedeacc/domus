@@ -17,10 +17,25 @@ impl MemoryService {
     }
 
     pub async fn list(&self, user_id: Uuid) -> Result<Vec<domus_db::entities::Memory>> {
+        self.repos.memory.create_on_this_day(user_id).await?;
         self.repos.memory.list_for_user(user_id).await
     }
 
     pub async fn get(&self, id: Uuid) -> Result<domus_db::entities::Memory> {
         self.repos.memory.get(id).await
+    }
+
+    pub async fn assets(&self, id: Uuid) -> Result<Vec<domus_db::entities::Asset>> {
+        let memory = self.repos.memory.get(id).await?;
+        let asset_ids = self.repos.memory.asset_ids(id).await?;
+        self.repos
+            .asset
+            .list_by_ids(memory.owner_id, &asset_ids)
+            .await
+    }
+
+    pub async fn statistics(&self, user_id: Uuid) -> Result<serde_json::Value> {
+        let memories = self.list(user_id).await?;
+        Ok(serde_json::json!({ "total": memories.len() }))
     }
 }

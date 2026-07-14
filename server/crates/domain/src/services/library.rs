@@ -21,8 +21,16 @@ impl LibraryService {
         self.repos.library.list(owner_id).await
     }
 
-    pub async fn create(&self, owner_id: Uuid, name: &str, import_paths: &[String]) -> Result<Library> {
-        self.repos.library.create(owner_id, name, import_paths).await
+    pub async fn create(
+        &self,
+        owner_id: Uuid,
+        name: &str,
+        import_paths: &[String],
+    ) -> Result<Library> {
+        self.repos
+            .library
+            .create(owner_id, name, import_paths)
+            .await
     }
 
     /// Kick off a scan job over the library's import paths.

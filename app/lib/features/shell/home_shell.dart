@@ -30,7 +30,9 @@ class HomeShell extends StatelessWidget {
               destinations: [
                 for (final d in _destinations)
                   NavigationRailDestination(
-                      icon: Icon(d.icon), label: Text(d.label)),
+                    icon: Icon(d.icon),
+                    label: Text(d.label),
+                  ),
               ],
             ),
             const VerticalDivider(width: 1),

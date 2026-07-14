@@ -2,11 +2,11 @@
 //! names Immich uses (IMMICH_*/DB_*) so existing deployments can point at
 //! Domus without changes, plus DOMUS_* overrides.
 
-use figment::providers::Env;
+use figment::providers::{Env, Serialized};
 use figment::Figment;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     /// HTTP listen host.
     #[serde(default = "default_host")]
@@ -22,7 +22,7 @@ pub struct Config {
     pub workers: WorkerConfig,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DatabaseConfig {
     #[serde(default = "default_db_url")]
     pub url: String,
@@ -33,7 +33,7 @@ pub struct DatabaseConfig {
 /// Which worker groups this process runs. Mirrors IMMICH_WORKERS_INCLUDE /
 /// IMMICH_WORKERS_EXCLUDE: a single binary can run "api", "microservices"
 /// (background jobs) or both.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WorkerConfig {
     #[serde(default = "default_true")]
     pub api: bool,
@@ -43,13 +43,16 @@ pub struct WorkerConfig {
 
 impl Default for WorkerConfig {
     fn default() -> Self {
-        Self { api: true, microservices: true }
+        Self {
+            api: true,
+            microservices: true,
+        }
     }
 }
 
 impl Config {
     pub fn load() -> crate::Result<Self> {
-        let figment = Figment::new()
+        let figment = Figment::from(Serialized::defaults(Config::default()))
             .merge(Env::prefixed("DOMUS_").split("__"))
             .join(Env::raw().only(&["HOST", "PORT"]));
         let mut config: Config = figment
@@ -66,6 +69,14 @@ impl Config {
             if let Ok(port) = v.parse() {
                 self.port = port;
             }
+        }
+        if let Ok(v) = std::env::var("PORT") {
+            if let Ok(port) = v.parse() {
+                self.port = port;
+            }
+        }
+        if let Ok(v) = std::env::var("HOST") {
+            self.host = v;
         }
         if let Ok(v) = std::env::var("IMMICH_MEDIA_LOCATION") {
             self.media_location = v;
@@ -101,7 +112,10 @@ impl Default for Config {
             host: default_host(),
             port: default_port(),
             media_location: default_media_location(),
-            database: DatabaseConfig { url: default_db_url(), max_connections: default_db_pool() },
+            database: DatabaseConfig {
+                url: default_db_url(),
+                max_connections: default_db_pool(),
+            },
             workers: WorkerConfig::default(),
         }
     }

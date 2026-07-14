@@ -20,11 +20,27 @@ impl PartnerService {
         self.repos.partner.list(user_id).await
     }
 
-    pub async fn create(&self, shared_by: Uuid, shared_with: Uuid) -> Result<domus_db::entities::Partner> {
+    pub async fn create(
+        &self,
+        shared_by: Uuid,
+        shared_with: Uuid,
+    ) -> Result<domus_db::entities::Partner> {
         self.repos.partner.create(shared_by, shared_with).await
     }
 
     pub async fn remove(&self, shared_by: Uuid, shared_with: Uuid) -> Result<()> {
         self.repos.partner.remove(shared_by, shared_with).await
+    }
+
+    pub async fn update_timeline(
+        &self,
+        shared_by: Uuid,
+        shared_with: Uuid,
+        in_timeline: bool,
+    ) -> Result<domus_db::entities::Partner> {
+        self.repos
+            .partner
+            .update_timeline(shared_by, shared_with, in_timeline)
+            .await
     }
 }

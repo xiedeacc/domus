@@ -70,7 +70,10 @@ async fn login(
     ))
 }
 
-async fn logout(State(state): State<AppState>, Auth(ctx): Auth) -> ApiResult<Json<serde_json::Value>> {
+async fn logout(
+    State(state): State<AppState>,
+    Auth(ctx): Auth,
+) -> ApiResult<Json<serde_json::Value>> {
     if let Some(session_id) = ctx.session_id {
         state.services.auth.logout(session_id).await?;
     }

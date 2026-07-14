@@ -18,6 +18,17 @@
 	<string>domus_app</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.domus.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>domus</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
@@ -49,10 +60,23 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>domus.backgroundBackup</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Domus backs up selected photos and videos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Domus saves downloaded photos and videos.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

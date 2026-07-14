@@ -23,7 +23,10 @@ pub struct Auth(pub AuthContext);
 impl FromRequestParts<AppState> for Auth {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let auth = &state.services.auth;
 
         if let Some(key) = header(parts, HEADER_API_KEY) {
@@ -35,8 +38,16 @@ impl FromRequestParts<AppState> for Auth {
         {
             return Ok(Auth(auth.validate_session(&token).await?));
         }
-        // TODO: shared-link key/slug resolution for public routes.
-        Err(ApiError(Error::Unauthorized("Authentication required".into())))
+        let (key, slug) = shared_link_query(parts);
+        if key.is_some() || slug.is_some() {
+            return Ok(Auth(
+                auth.validate_shared_link(key.as_deref(), slug.as_deref())
+                    .await?,
+            ));
+        }
+        Err(ApiError(Error::Unauthorized(
+            "Authentication required".into(),
+        )))
     }
 }
 
@@ -46,7 +57,10 @@ pub struct AdminAuth(pub AuthContext);
 impl FromRequestParts<AppState> for AdminAuth {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let Auth(ctx) = Auth::from_request_parts(parts, state).await?;
         if !ctx.is_admin {
             return Err(ApiError(Error::Forbidden("Forbidden".into())));
@@ -70,4 +84,20 @@ fn cookie(parts: &Parts, name: &str) -> Option<String> {
         let (k, v) = c.trim().split_once('=')?;
         (k == name).then(|| v.to_owned())
     })
+}
+
+fn shared_link_query(parts: &Parts) -> (Option<String>, Option<String>) {
+    let mut key = None;
+    let mut slug = None;
+    if let Some(query) = parts.uri.query() {
+        for pair in query.split('&') {
+            let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+            match name {
+                "key" => key = Some(value.to_owned()),
+                "slug" => slug = Some(value.to_owned()),
+                _ => {}
+            }
+        }
+    }
+    (key, slug)
 }

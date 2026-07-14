@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../models/asset.dart';
+import '../../timeline/widgets/asset_thumbnail.dart';
+import '../data/search_repository.dart';
 
 /// Search: metadata filters (filename, city, camera, date) backed by
 /// POST /search/metadata. Smart (CLIP) search is a server feature Domus
@@ -13,6 +18,7 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
+  Future<List<Asset>>? _future;
 
   @override
   void dispose() {
@@ -31,12 +37,51 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             border: InputBorder.none,
           ),
           onSubmitted: (query) {
-            // TODO: POST /search/metadata with {originalFileName: query}
-            // and render a result grid.
+            setState(() {
+              _future = ref.read(searchRepositoryProvider).search(query);
+            });
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => context.push('/map'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.folder_outlined),
+            onPressed: () => context.push('/folders'),
+          ),
+        ],
       ),
-      body: const Center(child: Text('Search by filename, place or date')),
+      body: _future == null
+          ? const Center(child: Text('Search by filename, place or date'))
+          : FutureBuilder(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('${snapshot.error}'));
+                }
+                final assets = snapshot.data ?? const [];
+                if (assets.isEmpty) {
+                  return const Center(child: Text('No results'));
+                }
+                return GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 160,
+                    mainAxisSpacing: 2,
+                    crossAxisSpacing: 2,
+                  ),
+                  itemCount: assets.length,
+                  itemBuilder: (context, i) => AssetThumbnail(
+                    asset: assets[i],
+                    onTap: () => context.push('/asset/${assets[i].id}'),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

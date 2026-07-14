@@ -1,8 +1,8 @@
+use crate::entities::Activity;
 use domus_common::{Error, Result};
 use sqlx::PgPool;
 #[allow(unused_imports)]
 use uuid::Uuid;
-use crate::entities::Activity;
 
 #[derive(Clone)]
 pub struct ActivityRepository {
@@ -15,7 +15,11 @@ impl ActivityRepository {
         Self { pool }
     }
 
-    pub async fn list_for_album(&self, _album_id: Uuid, _asset_id: Option<Uuid>) -> Result<Vec<Activity>> {
+    pub async fn list_for_album(
+        &self,
+        _album_id: Uuid,
+        _asset_id: Option<Uuid>,
+    ) -> Result<Vec<Activity>> {
         Err(Error::NotImplemented("ActivityRepository::list_for_album"))
     }
 
