@@ -95,23 +95,35 @@ impl SharedLinkRepository {
     pub async fn update_options(
         &self,
         id: Uuid,
+        allow_upload: Option<bool>,
         allow_download: Option<bool>,
         show_exif: Option<bool>,
         description: Option<&str>,
+        password: Option<&str>,
+        slug: Option<&str>,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<SharedLink> {
         let row = sqlx::query(
             r#"UPDATE shared_link
-               SET "allowDownload" = COALESCE($2, "allowDownload"),
-                   "showExif" = COALESCE($3, "showExif"),
-                   description = COALESCE($4, description)
+               SET "allowUpload" = COALESCE($2, "allowUpload"),
+                   "allowDownload" = COALESCE($3, "allowDownload"),
+                   "showExif" = COALESCE($4, "showExif"),
+                   description = COALESCE($5, description),
+                   password = COALESCE($6, password),
+                   slug = COALESCE($7, slug),
+                   "expiresAt" = COALESCE($8, "expiresAt")
                WHERE id = $1
                RETURNING id, "userId", key, slug, type, "albumId", description, password,
                          "allowUpload", "allowDownload", "showExif", "expiresAt", "createdAt""#,
         )
         .bind(id)
+        .bind(allow_upload)
         .bind(allow_download)
         .bind(show_exif)
         .bind(description)
+        .bind(password)
+        .bind(slug)
+        .bind(expires_at)
         .fetch_one(&self.pool)
         .await
         .map_err(db_err)?;

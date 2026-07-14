@@ -384,6 +384,7 @@ pub struct SharedLinkResponseDto {
     pub description: Option<String>,
     pub allow_upload: bool,
     pub allow_download: bool,
+    #[serde(rename = "showMetadata")]
     pub show_exif: bool,
     pub expires_at: Option<String>,
     pub created_at: String,
@@ -395,7 +396,7 @@ impl SharedLinkResponseDto {
         Self {
             id: link.id,
             user_id: link.user_id,
-            key: hex::encode(&link.key),
+            key: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&link.key),
             slug: link.slug.clone(),
             link_type: link.link_type,
             album_id: link.album_id,
@@ -441,7 +442,8 @@ impl MapMarkerResponseDto {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domus_db::entities::Partner;
+    use domus_common::types::SharedLinkType;
+    use domus_db::entities::{Partner, SharedLink};
     use domus_domain::services::partner::PartnerWithUser;
     use serde_json::json;
 
@@ -496,6 +498,24 @@ mod tests {
                 created_at: dt("2026-07-14T01:02:03.456Z"),
             },
             user: user(),
+        }
+    }
+
+    fn shared_link() -> SharedLink {
+        SharedLink {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000020").unwrap(),
+            user_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            key: vec![7u8; 32],
+            slug: None,
+            link_type: SharedLinkType::Individual,
+            album_id: None,
+            description: None,
+            password: None,
+            allow_upload: true,
+            allow_download: false,
+            show_exif: false,
+            expires_at: None,
+            created_at: dt("2026-07-14T01:02:03.456Z"),
         }
     }
 
@@ -577,6 +597,17 @@ mod tests {
         assert!(value.get("sharedById").is_none());
         assert!(value.get("sharedWithId").is_none());
         assert!(value.get("createdAt").is_none());
+    }
+
+    #[test]
+    fn shared_link_response_uses_immich_key_type_and_metadata_fields() {
+        let value =
+            serde_json::to_value(SharedLinkResponseDto::from_link(&shared_link(), vec![])).unwrap();
+
+        assert_eq!(value["key"], "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc");
+        assert_eq!(value["type"], "INDIVIDUAL");
+        assert_eq!(value["showMetadata"], false);
+        assert!(value.get("showExif").is_none());
     }
 
     #[test]

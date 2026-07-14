@@ -49,6 +49,9 @@ Current non-ML Immich test inventory:
 | `server/src/services/tag.service.spec.ts` | `server/crates/domain/src/services/tag.rs` hierarchical tag upsert and slash normalization |
 | `server/src/controllers/partner.controller.spec.ts` | `server/crates/domain/src/services/partner.rs` required `direction` enum parsing |
 | `server/src/services/partner.service.spec.ts` | `server/crates/api/src/dto.rs` partner response maps to shared user + `inTimeline`; duplicate/missing partner checks in service |
+| `server/src/controllers/shared-link.controller.spec.ts` | `server/crates/api/src/routes/shared_links.rs` nullable `expiresAt` create payload and shared-link mutation routes |
+| `server/src/services/shared-link.service.spec.ts` | `server/crates/domain/src/services/shared_link.rs` create validation, showMetadata/download coupling, base64url key decoding |
+| `server/src/dtos/shared-link.dto.ts` | `server/crates/api/src/dto.rs` shared-link response key/type/showMetadata field compatibility |
 
 ## Rules
 

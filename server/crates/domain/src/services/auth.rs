@@ -14,6 +14,7 @@ use domus_db::Repositories;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use super::shared_link::decode_shared_link_key;
 use super::user::validate_email;
 
 pub struct AuthService {
@@ -173,7 +174,7 @@ impl AuthService {
     ) -> Result<AuthContext> {
         let link = match (key, slug) {
             (Some(k), _) => {
-                let bytes = hex::decode(k).map_err(|_| Error::BadRequest("invalid key".into()))?;
+                let bytes = decode_shared_link_key(k)?;
                 self.repos
                     .shared_link
                     .get_by_key(&bytes)

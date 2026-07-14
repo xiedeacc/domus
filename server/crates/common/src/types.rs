@@ -52,9 +52,10 @@ pub enum AlbumUserRole {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
 pub enum SharedLinkType {
+    #[serde(rename = "ALBUM", alias = "album")]
     Album,
+    #[serde(rename = "INDIVIDUAL", alias = "individual")]
     Individual,
 }
 
@@ -63,4 +64,33 @@ pub enum SharedLinkType {
 pub enum SortOrder {
     Asc,
     Desc,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SharedLinkType;
+
+    #[test]
+    fn shared_link_type_serializes_like_immich_enum() {
+        assert_eq!(
+            serde_json::to_string(&SharedLinkType::Individual).unwrap(),
+            "\"INDIVIDUAL\""
+        );
+        assert_eq!(
+            serde_json::to_string(&SharedLinkType::Album).unwrap(),
+            "\"ALBUM\""
+        );
+    }
+
+    #[test]
+    fn shared_link_type_accepts_legacy_lowercase_inputs() {
+        assert_eq!(
+            serde_json::from_str::<SharedLinkType>("\"individual\"").unwrap(),
+            SharedLinkType::Individual
+        );
+        assert_eq!(
+            serde_json::from_str::<SharedLinkType>("\"album\"").unwrap(),
+            SharedLinkType::Album
+        );
+    }
 }

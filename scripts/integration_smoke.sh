@@ -243,7 +243,7 @@ curl -fsS "${BASE}/partners?direction=shared-by" \
 
 SHARE="$(curl -fsS -X POST "${BASE}/shared-links" \
   -H "Authorization: Bearer ${TOKEN}" -H 'content-type: application/json' \
-  -d "{\"type\":\"individual\",\"assetIds\":[\"${ASSET_ID}\"],\"allowDownload\":true}")"
+  -d "{\"type\":\"INDIVIDUAL\",\"assetIds\":[\"${ASSET_ID}\"],\"allowDownload\":true}")"
 SHARE_KEY="$(jq -r '.key' <<<"${SHARE}")"
 curl -fsS --get "${BASE}/shared-links/me" \
   --data-urlencode "key=${SHARE_KEY}" | jq -e '.assets | length == 1' >/dev/null
@@ -252,7 +252,7 @@ curl -fsS --get "${BASE}/assets/${ASSET_ID}/original" \
 test "$(wc -c </tmp/domus-smoke-share.out)" -eq "$(wc -c </tmp/domus-smoke-upload.png)"
 READ_ONLY_SHARE="$(curl -fsS -X POST "${BASE}/shared-links" \
   -H "Authorization: Bearer ${TOKEN}" -H 'content-type: application/json' \
-  -d "{\"type\":\"individual\",\"assetIds\":[\"${OLD_ASSET_ID}\"],\"allowDownload\":false}")"
+  -d "{\"type\":\"INDIVIDUAL\",\"assetIds\":[\"${OLD_ASSET_ID}\"],\"allowDownload\":false}")"
 READ_ONLY_KEY="$(jq -r '.key' <<<"${READ_ONLY_SHARE}")"
 curl -fsS --get "${BASE}/assets/${OLD_ASSET_ID}/thumbnail" \
   --data-urlencode "key=${READ_ONLY_KEY}" -o /tmp/domus-smoke-readonly-thumb.out

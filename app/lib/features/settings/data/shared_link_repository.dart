@@ -44,10 +44,10 @@ class SharedLinkRepository {
     final response = await _api.dio.post<Map<String, dynamic>>(
       '/shared-links',
       data: {
-        'type': 'individual',
+        'type': 'INDIVIDUAL',
         'assetIds': [assetId],
         'allowDownload': true,
-        'showExif': true,
+        'showMetadata': true,
       },
     );
     return SharedLink.fromJson(response.data!);

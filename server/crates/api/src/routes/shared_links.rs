@@ -8,6 +8,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use domus_common::types::SharedLinkType;
 use serde::Deserialize;
@@ -40,19 +41,29 @@ struct CreateSharedLinkDto {
     #[serde(default)]
     asset_ids: Vec<Uuid>,
     description: Option<String>,
+    password: Option<String>,
+    slug: Option<String>,
+    #[serde(default = "default_true")]
+    allow_upload: bool,
     #[serde(default = "default_true")]
     allow_download: bool,
     #[serde(default = "default_true")]
-    show_exif: bool,
+    #[serde(rename = "showMetadata", alias = "showExif")]
+    show_metadata: bool,
     expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateSharedLinkDto {
+    allow_upload: Option<bool>,
     allow_download: Option<bool>,
-    show_exif: Option<bool>,
+    #[serde(rename = "showMetadata", alias = "showExif")]
+    show_metadata: Option<bool>,
     description: Option<String>,
+    password: Option<String>,
+    slug: Option<String>,
+    expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Deserialize)]
@@ -87,8 +98,11 @@ async fn create_shared_link(
             dto.album_id,
             &dto.asset_ids,
             dto.description,
+            dto.password,
+            dto.slug,
+            dto.allow_upload,
             dto.allow_download,
-            dto.show_exif,
+            dto.show_metadata,
             dto.expires_at,
         )
         .await?;
@@ -104,9 +118,10 @@ async fn shared_link_login(
         .shared_link
         .resolve(query.key.as_deref(), query.slug.as_deref())
         .await?;
+    let key = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&link.key);
     Ok(Json(serde_json::json!({
-        "accessToken": hex::encode(&link.key),
-        "key": hex::encode(&link.key),
+        "accessToken": key.clone(),
+        "key": key,
         "id": link.id,
     })))
 }
@@ -143,9 +158,13 @@ async fn update_shared_link(
         .shared_link
         .update_options(
             id,
+            dto.allow_upload,
             dto.allow_download,
-            dto.show_exif,
+            dto.show_metadata,
             dto.description.as_deref(),
+            dto.password.as_deref(),
+            dto.slug.as_deref(),
+            dto.expires_at,
         )
         .await?;
     Ok(Json(shared_link_response(&state, &link).await?))
