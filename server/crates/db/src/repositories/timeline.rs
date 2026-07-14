@@ -11,12 +11,21 @@ pub struct TimeBucketQuery {
     pub album_id: Option<Uuid>,
     pub person_id: Option<Uuid>,
     pub tag_id: Option<Uuid>,
+    pub bbox: Option<BBox>,
     pub is_favorite: Option<bool>,
     pub is_trashed: Option<bool>,
     pub visibility: Option<String>,
     pub with_partners: bool,
     pub with_stacked: bool,
     pub order_desc: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BBox {
+    pub west: f64,
+    pub south: f64,
+    pub east: f64,
+    pub north: f64,
 }
 
 #[derive(Clone)]
