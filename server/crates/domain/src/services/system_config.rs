@@ -76,7 +76,7 @@ pub fn default_config() -> serde_json::Value {
             "realtime": {
                 "enabled": false,
                 "videoCodecs": ["h264", "hevc"],
-                "resolutions": ["480", "720", "1080"]
+                "resolutions": [480, 720, 1080]
             }
         },
         "integrityChecks": {
@@ -100,7 +100,7 @@ pub fn default_config() -> serde_json::Value {
             "migration": {"concurrency": 5},
             "thumbnailGeneration": {"concurrency": 3},
             "videoConversion": {"concurrency": 1},
-            "notification": {"concurrency": 5},
+            "notifications": {"concurrency": 5},
             "ocr": {"concurrency": 1},
             "workflow": {"concurrency": 5},
             "integrityCheck": {"concurrency": 1},
@@ -265,6 +265,7 @@ pub fn merge_with_defaults(value: Value) -> Value {
 pub fn validate_config(value: &Value) -> Result<()> {
     validate_against_schema(&default_config(), value, &[])?;
     validate_nightly_tasks(value)?;
+    validate_constraints(value)?;
     Ok(())
 }
 
@@ -329,6 +330,297 @@ fn validate_nightly_tasks(value: &Value) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn validate_constraints(value: &Value) -> Result<()> {
+    validate_int_range(value, "/backup/database/keepLastAmount", Some(1), None)?;
+    validate_cron(value, "/backup/database/cronExpression")?;
+    validate_int_range(value, "/ffmpeg/crf", Some(0), Some(51))?;
+    validate_int_range(value, "/ffmpeg/threads", Some(0), None)?;
+    validate_int_range(value, "/ffmpeg/bframes", Some(-1), Some(16))?;
+    validate_int_range(value, "/ffmpeg/refs", Some(0), Some(6))?;
+    validate_int_range(value, "/ffmpeg/gopSize", Some(0), None)?;
+    validate_enum(
+        value,
+        "/ffmpeg/targetVideoCodec",
+        &["h264", "hevc", "vp9", "av1"],
+    )?;
+    validate_enum_array(
+        value,
+        "/ffmpeg/acceptedVideoCodecs",
+        &["h264", "hevc", "vp9", "av1"],
+    )?;
+    validate_enum(
+        value,
+        "/ffmpeg/targetAudioCodec",
+        &["mp3", "aac", "opus", "pcm_s16le"],
+    )?;
+    validate_enum_array(
+        value,
+        "/ffmpeg/acceptedAudioCodecs",
+        &["mp3", "aac", "opus", "pcm_s16le"],
+    )?;
+    validate_enum_array(
+        value,
+        "/ffmpeg/acceptedContainers",
+        &["mov", "mp4", "ogg", "webm"],
+    )?;
+    validate_enum(value, "/ffmpeg/cqMode", &["auto", "cqp", "icq"])?;
+    validate_enum(
+        value,
+        "/ffmpeg/transcode",
+        &["all", "optimal", "bitrate", "required", "disabled"],
+    )?;
+    validate_enum(
+        value,
+        "/ffmpeg/accel",
+        &["nvenc", "qsv", "vaapi", "rkmpp", "disabled"],
+    )?;
+    validate_enum(
+        value,
+        "/ffmpeg/tonemap",
+        &["hable", "mobius", "reinhard", "disabled"],
+    )?;
+    validate_enum_array(
+        value,
+        "/ffmpeg/realtime/videoCodecs",
+        &["h264", "hevc", "vp9", "av1"],
+    )?;
+    validate_i64_array(
+        value,
+        "/ffmpeg/realtime/resolutions",
+        &[480, 720, 1080, 1440, 2160],
+    )?;
+
+    validate_cron(value, "/integrityChecks/missingFiles/cronExpression")?;
+    validate_cron(value, "/integrityChecks/untrackedFiles/cronExpression")?;
+    validate_cron(value, "/integrityChecks/checksumFiles/cronExpression")?;
+    validate_int_range(
+        value,
+        "/integrityChecks/checksumFiles/timeLimit",
+        Some(0),
+        None,
+    )?;
+    validate_number_range(
+        value,
+        "/integrityChecks/checksumFiles/percentageLimit",
+        Some(0.0),
+        Some(1.0),
+    )?;
+
+    if let Some(jobs) = value.get("job").and_then(Value::as_object) {
+        for key in jobs.keys() {
+            validate_int_range(value, &format!("/job/{key}/concurrency"), Some(1), None)?;
+        }
+    }
+    validate_cron(value, "/library/scan/cronExpression")?;
+    validate_enum(
+        value,
+        "/logging/level",
+        &["verbose", "debug", "log", "warn", "error", "fatal"],
+    )?;
+    validate_non_empty_array(value, "/machineLearning/urls")?;
+    validate_url(value, "/map/lightStyle", false)?;
+    validate_url(value, "/map/darkStyle", false)?;
+    validate_enum(
+        value,
+        "/newVersionCheck/channel",
+        &["stable", "releaseCandidate"],
+    )?;
+    validate_int_range(value, "/oauth/timeout", Some(1), None)?;
+    validate_nullable_int_range(value, "/oauth/defaultStorageQuota", Some(0), None)?;
+    validate_enum(
+        value,
+        "/oauth/tokenEndpointAuthMethod",
+        &["client_secret_post", "client_secret_basic"],
+    )?;
+    validate_url(value, "/oauth/issuerUrl", true)?;
+    validate_url(value, "/oauth/endSessionEndpoint", true)?;
+    if value
+        .pointer("/oauth/mobileOverrideEnabled")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        validate_url(value, "/oauth/mobileRedirectUri", true)?;
+    }
+    validate_url(value, "/server/externalDomain", true)?;
+    validate_int_range(
+        value,
+        "/notifications/smtp/transport/port",
+        Some(0),
+        Some(65_535),
+    )?;
+    validate_enum(value, "/image/thumbnail/format", &["jpeg", "webp"])?;
+    validate_int_range(value, "/image/thumbnail/quality", Some(1), Some(100))?;
+    validate_int_range(value, "/image/thumbnail/size", Some(1), None)?;
+    validate_enum(value, "/image/preview/format", &["jpeg", "webp"])?;
+    validate_int_range(value, "/image/preview/quality", Some(1), Some(100))?;
+    validate_int_range(value, "/image/preview/size", Some(1), None)?;
+    validate_enum(value, "/image/fullsize/format", &["jpeg", "webp"])?;
+    validate_int_range(value, "/image/fullsize/quality", Some(1), Some(100))?;
+    validate_enum(value, "/image/colorspace", &["srgb", "p3"])?;
+    validate_int_range(value, "/trash/days", Some(0), None)?;
+    validate_int_range(value, "/user/deleteDelay", Some(1), None)?;
+    Ok(())
+}
+
+fn validate_cron(value: &Value, path: &str) -> Result<()> {
+    let Some(cron) = value.pointer(path).and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let parts = cron.split_whitespace().count();
+    if parts == 5 || parts == 6 {
+        return Ok(());
+    }
+    Err(path_error(path, "a valid cron expression"))
+}
+
+fn validate_url(value: &Value, path: &str, allow_empty: bool) -> Result<()> {
+    let Some(url) = value.pointer(path).and_then(Value::as_str) else {
+        return Ok(());
+    };
+    if (allow_empty && url.is_empty()) || looks_like_url(url) {
+        return Ok(());
+    }
+    Err(path_error(path, "an empty string or valid URL"))
+}
+
+fn validate_enum(value: &Value, path: &str, allowed: &[&str]) -> Result<()> {
+    let Some(actual) = value.pointer(path).and_then(Value::as_str) else {
+        return Ok(());
+    };
+    if allowed.contains(&actual) {
+        return Ok(());
+    }
+    Err(path_error(path, &format!("one of {}", allowed.join(", "))))
+}
+
+fn validate_enum_array(value: &Value, path: &str, allowed: &[&str]) -> Result<()> {
+    let Some(items) = value.pointer(path).and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for item in items {
+        let Some(actual) = item.as_str() else {
+            return Err(path_error(path, "array of strings"));
+        };
+        if !allowed.contains(&actual) {
+            return Err(path_error(
+                path,
+                &format!("array values from {}", allowed.join(", ")),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_i64_array(value: &Value, path: &str, allowed: &[i64]) -> Result<()> {
+    let Some(items) = value.pointer(path).and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for item in items {
+        let Some(actual) = as_i64(item) else {
+            return Err(path_error(path, "array of integers"));
+        };
+        if !allowed.contains(&actual) {
+            return Err(path_error(
+                path,
+                "array values from 480, 720, 1080, 1440, 2160",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_non_empty_array(value: &Value, path: &str) -> Result<()> {
+    let Some(items) = value.pointer(path).and_then(Value::as_array) else {
+        return Ok(());
+    };
+    if items.is_empty() {
+        return Err(path_error(path, "a non-empty array"));
+    }
+    Ok(())
+}
+
+fn validate_nullable_int_range(
+    value: &Value,
+    path: &str,
+    min: Option<i64>,
+    max: Option<i64>,
+) -> Result<()> {
+    if value.pointer(path).is_some_and(Value::is_null) {
+        return Ok(());
+    }
+    validate_int_range(value, path, min, max)
+}
+
+fn validate_int_range(value: &Value, path: &str, min: Option<i64>, max: Option<i64>) -> Result<()> {
+    let Some(actual) = value.pointer(path) else {
+        return Ok(());
+    };
+    let Some(actual) = as_i64(actual) else {
+        return Err(path_error(path, "integer"));
+    };
+    if min.is_some_and(|min| actual < min) || max.is_some_and(|max| actual > max) {
+        return Err(path_error(path, &range_label(min, max)));
+    }
+    Ok(())
+}
+
+fn validate_number_range(
+    value: &Value,
+    path: &str,
+    min: Option<f64>,
+    max: Option<f64>,
+) -> Result<()> {
+    let Some(actual) = value.pointer(path).and_then(Value::as_f64) else {
+        return Ok(());
+    };
+    if min.is_some_and(|min| actual < min) || max.is_some_and(|max| actual > max) {
+        return Err(path_error(path, &range_label_f64(min, max)));
+    }
+    Ok(())
+}
+
+fn looks_like_url(value: &str) -> bool {
+    let Some(rest) = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    !rest.is_empty() && !rest.chars().any(char::is_whitespace)
+}
+
+fn as_i64(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+}
+
+fn range_label(min: Option<i64>, max: Option<i64>) -> String {
+    match (min, max) {
+        (Some(min), Some(max)) => format!("integer between {min} and {max}"),
+        (Some(min), None) => format!("integer greater than or equal to {min}"),
+        (None, Some(max)) => format!("integer less than or equal to {max}"),
+        (None, None) => "integer".into(),
+    }
+}
+
+fn range_label_f64(min: Option<f64>, max: Option<f64>) -> String {
+    match (min, max) {
+        (Some(min), Some(max)) => format!("number between {min} and {max}"),
+        (Some(min), None) => format!("number greater than or equal to {min}"),
+        (None, Some(max)) => format!("number less than or equal to {max}"),
+        (None, None) => "number".into(),
+    }
+}
+
+fn path_error(path: &str, expected: &str) -> Error {
+    Error::BadRequest(format!(
+        "Validation failed: {} expected {}",
+        path.trim_start_matches('/').replace('/', "."),
+        expected
+    ))
 }
 
 fn is_hh_mm(value: &str) -> bool {
@@ -443,6 +735,16 @@ mod tests {
                 .and_then(|v| v.as_bool()),
             Some(false)
         );
+        assert_eq!(
+            config
+                .pointer("/job/notifications/concurrency")
+                .and_then(|v| v.as_u64()),
+            Some(5)
+        );
+        assert_eq!(
+            config.pointer("/ffmpeg/realtime/resolutions"),
+            Some(&serde_json::json!([480, 720, 1080]))
+        );
     }
 
     #[test]
@@ -543,5 +845,85 @@ mod tests {
         let err = validate_config(&config).unwrap_err().to_string();
         assert!(err.contains("image.thumbnail.progressive"));
         assert!(err.contains("expected boolean"));
+    }
+
+    #[test]
+    fn validates_numeric_ranges_from_immich_system_config_schema() {
+        let mut config = default_config();
+        config["ffmpeg"]["crf"] = serde_json::json!(52);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("ffmpeg.crf"));
+        assert!(err.contains("between 0 and 51"));
+
+        let mut config = default_config();
+        config["job"]["thumbnailGeneration"]["concurrency"] = serde_json::json!(0);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("job.thumbnailGeneration.concurrency"));
+        assert!(err.contains("greater than or equal to 1"));
+
+        let mut config = default_config();
+        config["notifications"]["smtp"]["transport"]["port"] = serde_json::json!(65_536);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("notifications.smtp.transport.port"));
+        assert!(err.contains("between 0 and 65535"));
+    }
+
+    #[test]
+    fn validates_image_ranges_and_enums_from_immich_system_config_schema() {
+        let mut config = default_config();
+        config["image"]["preview"]["quality"] = serde_json::json!(101);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("image.preview.quality"));
+        assert!(err.contains("between 1 and 100"));
+
+        let mut config = default_config();
+        config["image"]["thumbnail"]["format"] = serde_json::json!("png");
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("image.thumbnail.format"));
+        assert!(err.contains("jpeg, webp"));
+
+        let mut config = default_config();
+        config["image"]["colorspace"] = serde_json::json!("adobe-rgb");
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("image.colorspace"));
+        assert!(err.contains("srgb, p3"));
+    }
+
+    #[test]
+    fn validates_url_and_cron_constraints_from_immich_system_config_schema() {
+        let mut config = default_config();
+        config["map"]["lightStyle"] = serde_json::json!("not a url");
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("map.lightStyle"));
+        assert!(err.contains("valid URL"));
+
+        let mut config = default_config();
+        config["server"]["externalDomain"] = serde_json::json!("https://photos.example.test");
+        config["oauth"]["issuerUrl"] = serde_json::json!("");
+        config["oauth"]["mobileOverrideEnabled"] = serde_json::json!(true);
+        config["oauth"]["mobileRedirectUri"] = serde_json::json!("domus://callback");
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("oauth.mobileRedirectUri"));
+
+        let mut config = default_config();
+        config["library"]["scan"]["cronExpression"] = serde_json::json!("invalid");
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("library.scan.cronExpression"));
+        assert!(err.contains("cron"));
+    }
+
+    #[test]
+    fn validates_ffmpeg_enum_arrays_from_immich_system_config_schema() {
+        let mut config = default_config();
+        config["ffmpeg"]["acceptedVideoCodecs"] = serde_json::json!(["h264", "theora"]);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("ffmpeg.acceptedVideoCodecs"));
+        assert!(err.contains("h264"));
+
+        let mut config = default_config();
+        config["ffmpeg"]["realtime"]["resolutions"] = serde_json::json!([360]);
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("ffmpeg.realtime.resolutions"));
+        assert!(err.contains("480"));
     }
 }
