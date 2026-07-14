@@ -52,6 +52,8 @@ Current non-ML Immich test inventory:
 | `server/src/controllers/shared-link.controller.spec.ts` | `server/crates/api/src/routes/shared_links.rs` nullable `expiresAt` create payload and shared-link mutation routes |
 | `server/src/services/shared-link.service.spec.ts` | `server/crates/domain/src/services/shared_link.rs` create validation, showMetadata/download coupling, base64url key decoding |
 | `server/src/dtos/shared-link.dto.ts` | `server/crates/api/src/dto.rs` shared-link response key/type/showMetadata field compatibility |
+| `server/src/services/stack.service.spec.ts` | `server/crates/domain/src/services/stack.rs` min-2 create validation; `server/crates/api/src/dto.rs` primary-first response shape |
+| `server/src/dtos/stack.dto.ts` | `server/crates/api/src/dto.rs` stack response omits non-Immich `ownerId` |
 
 ## Rules
 

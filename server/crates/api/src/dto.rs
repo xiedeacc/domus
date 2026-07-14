@@ -355,16 +355,15 @@ impl From<&PartnerWithUser> for PartnerResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct StackResponseDto {
     pub id: Uuid,
-    pub owner_id: Uuid,
     pub primary_asset_id: Uuid,
     pub assets: Vec<AssetResponseDto>,
 }
 
 impl StackResponseDto {
-    pub fn from_stack(stack: &Stack, assets: Vec<AssetResponseDto>) -> Self {
+    pub fn from_stack(stack: &Stack, mut assets: Vec<AssetResponseDto>) -> Self {
+        assets.sort_by_key(|asset| asset.id != stack.primary_asset_id);
         Self {
             id: stack.id,
-            owner_id: stack.owner_id,
             primary_asset_id: stack.primary_asset_id,
             assets,
         }
@@ -519,6 +518,44 @@ mod tests {
         }
     }
 
+    fn stack() -> Stack {
+        Stack {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000030").unwrap(),
+            owner_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            primary_asset_id: Uuid::parse_str("10000000-0000-0000-0000-000000000032").unwrap(),
+        }
+    }
+
+    fn asset_response(id: &str) -> AssetResponseDto {
+        AssetResponseDto {
+            id: Uuid::parse_str(id).unwrap(),
+            device_asset_id: id.to_owned(),
+            owner_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            device_id: "device".to_owned(),
+            library_id: None,
+            asset_type: AssetType::Image,
+            original_path: "/upload/image.jpg".to_owned(),
+            original_file_name: "image.jpg".to_owned(),
+            resized: false,
+            thumbhash: None,
+            file_created_at: "2026-07-14T01:02:03.456Z".to_owned(),
+            file_modified_at: "2026-07-14T01:02:03.456Z".to_owned(),
+            local_date_time: "2026-07-14T01:02:03.456Z".to_owned(),
+            updated_at: "2026-07-14T01:02:03.456Z".to_owned(),
+            is_favorite: false,
+            is_archived: false,
+            is_trashed: false,
+            visibility: AssetVisibility::Timeline,
+            duration: None,
+            live_photo_video_id: None,
+            stack_id: None,
+            exif_info: None,
+            people: vec![],
+            tags: vec![],
+            checksum: "".to_owned(),
+        }
+    }
+
     #[test]
     fn album_response_sets_start_and_end_dates_from_assets() {
         let dto = AlbumResponseDto::from_album(
@@ -608,6 +645,32 @@ mod tests {
         assert_eq!(value["type"], "INDIVIDUAL");
         assert_eq!(value["showMetadata"], false);
         assert!(value.get("showExif").is_none());
+    }
+
+    #[test]
+    fn stack_response_uses_immich_shape_and_primary_asset_first() {
+        let dto = StackResponseDto::from_stack(
+            &stack(),
+            vec![
+                asset_response("10000000-0000-0000-0000-000000000031"),
+                asset_response("10000000-0000-0000-0000-000000000032"),
+            ],
+        );
+        let value = serde_json::to_value(dto).unwrap();
+
+        assert!(value.get("ownerId").is_none());
+        assert_eq!(
+            value["primaryAssetId"],
+            "10000000-0000-0000-0000-000000000032"
+        );
+        assert_eq!(
+            value["assets"][0]["id"],
+            "10000000-0000-0000-0000-000000000032"
+        );
+        assert_eq!(
+            value["assets"][1]["id"],
+            "10000000-0000-0000-0000-000000000031"
+        );
     }
 
     #[test]
