@@ -45,7 +45,7 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
       setState(() => _showDateControls = true);
     }
     _hideDateControlsTimer?.cancel();
-    _hideDateControlsTimer = Timer(const Duration(seconds: 2), () {
+    _hideDateControlsTimer = Timer(const Duration(seconds: 6), () {
       if (mounted && _range == null) {
         setState(() => _showDateControls = false);
       }
@@ -205,12 +205,25 @@ class _TimelineDateControls extends StatelessWidget {
               },
               showSelectedIcon: false,
             );
-            final rangeButton = TextButton.icon(
-              onPressed: onPickRange,
-              icon: const Icon(Icons.date_range_outlined),
-              label: Text(
-                range?.label(granularity) ?? 'All dates',
-                overflow: TextOverflow.ellipsis,
+            final rangeButton = InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onPickRange,
+              child: SizedBox(
+                height: 56,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.date_range_outlined),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        range?.label(granularity) ?? 'All dates',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
             final clearButton = IconButton(
