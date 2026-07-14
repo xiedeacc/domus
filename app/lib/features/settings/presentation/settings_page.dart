@@ -145,7 +145,9 @@ class SettingsPage extends ConsumerWidget {
                 for (final partner in partners)
                   ListTile(
                     dense: true,
-                    title: Text(partner.sharedWithId),
+                    title: Text(
+                      partner.name.isEmpty ? partner.email : partner.name,
+                    ),
                     subtitle: Text(
                       partner.inTimeline
                           ? 'Visible in timeline'
@@ -156,7 +158,7 @@ class SettingsPage extends ConsumerWidget {
                       onPressed: () async {
                         await ref
                             .read(partnerRepositoryProvider)
-                            .remove(partner.sharedWithId);
+                            .remove(partner.id);
                         ref.invalidate(partnersProvider);
                       },
                     ),

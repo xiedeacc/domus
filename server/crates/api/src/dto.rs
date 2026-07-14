@@ -5,7 +5,8 @@
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use domus_common::types::{AssetType, AssetVisibility};
-use domus_db::entities::{Album, Asset, Exif, Memory, Partner, Session, SharedLink, Stack, User};
+use domus_db::entities::{Album, Asset, Exif, Memory, Session, SharedLink, Stack, User};
+use domus_domain::services::partner::PartnerWithUser;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -336,19 +337,16 @@ impl MemoryResponseDto {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartnerResponseDto {
-    pub shared_by_id: Uuid,
-    pub shared_with_id: Uuid,
+    #[serde(flatten)]
+    pub user: UserResponseDto,
     pub in_timeline: bool,
-    pub created_at: String,
 }
 
-impl From<&Partner> for PartnerResponseDto {
-    fn from(partner: &Partner) -> Self {
+impl From<&PartnerWithUser> for PartnerResponseDto {
+    fn from(partner: &PartnerWithUser) -> Self {
         Self {
-            shared_by_id: partner.shared_by_id,
-            shared_with_id: partner.shared_with_id,
-            in_timeline: partner.in_timeline,
-            created_at: iso(&partner.created_at),
+            user: UserResponseDto::from(&partner.user),
+            in_timeline: partner.partner.in_timeline,
         }
     }
 }
@@ -443,6 +441,8 @@ impl MapMarkerResponseDto {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use domus_db::entities::Partner;
+    use domus_domain::services::partner::PartnerWithUser;
     use serde_json::json;
 
     fn dt(value: &str) -> DateTime<Utc> {
@@ -484,6 +484,18 @@ mod tests {
             updated_at: dt("2026-07-14T01:02:03.456Z"),
             deleted_at: None,
             profile_changed_at: dt("2026-07-14T01:02:03.456Z"),
+        }
+    }
+
+    fn partner_with_user() -> PartnerWithUser {
+        PartnerWithUser {
+            partner: Partner {
+                shared_by_id: Uuid::parse_str("10000000-0000-0000-0000-000000000011").unwrap(),
+                shared_with_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+                in_timeline: true,
+                created_at: dt("2026-07-14T01:02:03.456Z"),
+            },
+            user: user(),
         }
     }
 
@@ -544,6 +556,27 @@ mod tests {
         ] {
             assert!(value.get(field).is_some(), "{field} missing");
         }
+    }
+
+    #[test]
+    fn partner_response_uses_immich_user_shape_with_in_timeline() {
+        let value = serde_json::to_value(PartnerResponseDto::from(&partner_with_user())).unwrap();
+
+        for field in [
+            "id",
+            "email",
+            "name",
+            "profileImagePath",
+            "avatarColor",
+            "profileChangedAt",
+            "inTimeline",
+        ] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
+
+        assert!(value.get("sharedById").is_none());
+        assert!(value.get("sharedWithId").is_none());
+        assert!(value.get("createdAt").is_none());
     }
 
     #[test]

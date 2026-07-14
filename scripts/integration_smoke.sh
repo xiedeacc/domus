@@ -237,8 +237,8 @@ curl -fsS "${BASE}/stacks/${STACK_ID}" \
 
 curl -fsS -X POST "${BASE}/partners" \
   -H "Authorization: Bearer ${TOKEN}" -H 'content-type: application/json' \
-  -d "{\"sharedWithId\":\"${USER_ID}\"}" | jq -e --arg id "${USER_ID}" '.sharedWithId == $id' >/dev/null
-curl -fsS "${BASE}/partners" \
+  -d "{\"sharedWithId\":\"${USER_ID}\"}" | jq -e --arg id "${USER_ID}" '.id == $id and .inTimeline == true' >/dev/null
+curl -fsS "${BASE}/partners?direction=shared-by" \
   -H "Authorization: Bearer ${TOKEN}" | jq -e 'length >= 1' >/dev/null
 
 SHARE="$(curl -fsS -X POST "${BASE}/shared-links" \

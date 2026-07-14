@@ -4,10 +4,11 @@ use crate::dto::PartnerResponseDto;
 use crate::error::ApiResult;
 use crate::extractors::Auth;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{delete, get};
 use axum::{Json, Router};
+use domus_domain::services::partner::parse_partner_direction;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -30,11 +31,18 @@ struct UpdatePartnerDto {
     in_timeline: bool,
 }
 
+#[derive(Deserialize)]
+struct ListPartnersQuery {
+    direction: Option<String>,
+}
+
 async fn list_partners(
     State(state): State<AppState>,
     Auth(ctx): Auth,
+    Query(query): Query<ListPartnersQuery>,
 ) -> ApiResult<Json<Vec<PartnerResponseDto>>> {
-    let partners = state.services.partner.list(ctx.user_id).await?;
+    let direction = parse_partner_direction(query.direction.as_deref().unwrap_or(""))?;
+    let partners = state.services.partner.list(ctx.user_id, direction).await?;
     Ok(Json(partners.iter().map(Into::into).collect()))
 }
 

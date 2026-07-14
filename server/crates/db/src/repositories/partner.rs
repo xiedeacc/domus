@@ -1,6 +1,6 @@
 use super::db_err;
 use crate::entities::Partner;
-use domus_common::Result;
+use domus_common::{Error, Result};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,12 +29,25 @@ impl PartnerRepository {
         .map_err(db_err)
     }
 
+    pub async fn get(&self, shared_by: Uuid, shared_with: Uuid) -> Result<Option<Partner>> {
+        sqlx::query_as::<_, PartnerRow>(
+            r#"SELECT "sharedById" AS shared_by_id, "sharedWithId" AS shared_with_id,
+                      "inTimeline" AS in_timeline, "createdAt" AS created_at
+               FROM partner
+               WHERE "sharedById" = $1 AND "sharedWithId" = $2"#,
+        )
+        .bind(shared_by)
+        .bind(shared_with)
+        .fetch_optional(&self.pool)
+        .await
+        .map(|row| row.map(Into::into))
+        .map_err(db_err)
+    }
+
     pub async fn create(&self, shared_by: Uuid, shared_with: Uuid) -> Result<Partner> {
         sqlx::query_as::<_, PartnerRow>(
             r#"INSERT INTO partner ("sharedById", "sharedWithId", "inTimeline")
                VALUES ($1, $2, true)
-               ON CONFLICT ("sharedById", "sharedWithId") DO UPDATE
-               SET "inTimeline" = EXCLUDED."inTimeline"
                RETURNING "sharedById" AS shared_by_id, "sharedWithId" AS shared_with_id,
                          "inTimeline" AS in_timeline, "createdAt" AS created_at"#,
         )
@@ -43,7 +56,13 @@ impl PartnerRepository {
         .fetch_one(&self.pool)
         .await
         .map(Into::into)
-        .map_err(db_err)
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                Error::BadRequest("Partner already exists".into())
+            } else {
+                db_err(e)
+            }
+        })
     }
 
     pub async fn update_timeline(
@@ -76,6 +95,11 @@ impl PartnerRepository {
             .map_err(db_err)?;
         Ok(())
     }
+}
+
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .is_some_and(|db| db.code().as_deref() == Some("23505"))
 }
 
 #[derive(sqlx::FromRow)]

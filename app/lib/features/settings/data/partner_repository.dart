@@ -4,18 +4,21 @@ import '../../../core/api/api_client.dart';
 
 class Partner {
   const Partner({
-    required this.sharedById,
-    required this.sharedWithId,
+    required this.id,
+    required this.email,
+    required this.name,
     required this.inTimeline,
   });
 
-  final String sharedById;
-  final String sharedWithId;
+  final String id;
+  final String email;
+  final String name;
   final bool inTimeline;
 
   factory Partner.fromJson(Map<String, dynamic> json) => Partner(
-    sharedById: json['sharedById'] as String,
-    sharedWithId: json['sharedWithId'] as String,
+    id: json['id'] as String,
+    email: json['email'] as String? ?? '',
+    name: json['name'] as String? ?? '',
     inTimeline: (json['inTimeline'] as bool?) ?? false,
   );
 }
@@ -26,7 +29,10 @@ class PartnerRepository {
   final ApiClient _api;
 
   Future<List<Partner>> list() async {
-    final response = await _api.dio.get<List<dynamic>>('/partners');
+    final response = await _api.dio.get<List<dynamic>>(
+      '/partners',
+      queryParameters: {'direction': 'shared-by'},
+    );
     return [
       for (final item in response.data!)
         Partner.fromJson(item as Map<String, dynamic>),

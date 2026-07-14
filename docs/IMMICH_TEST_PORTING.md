@@ -47,6 +47,8 @@ Current non-ML Immich test inventory:
 | `server/src/services/version.service.spec.ts` | `server/crates/domain/src/services/server.rs` version response shape |
 | `server/src/controllers/tag.controller.spec.ts` | `server/crates/api/src/routes/tags.rs` tag response shape, optional field omission, null `parentId` input |
 | `server/src/services/tag.service.spec.ts` | `server/crates/domain/src/services/tag.rs` hierarchical tag upsert and slash normalization |
+| `server/src/controllers/partner.controller.spec.ts` | `server/crates/domain/src/services/partner.rs` required `direction` enum parsing |
+| `server/src/services/partner.service.spec.ts` | `server/crates/api/src/dto.rs` partner response maps to shared user + `inTimeline`; duplicate/missing partner checks in service |
 
 ## Rules
 
