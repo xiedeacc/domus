@@ -304,15 +304,15 @@ impl AssetRepository {
         Ok(())
     }
 
-    pub async fn restore(&self, ids: &[Uuid]) -> Result<()> {
-        sqlx::query(
+    pub async fn restore(&self, ids: &[Uuid]) -> Result<u64> {
+        let result = sqlx::query(
             r#"UPDATE asset SET "deletedAt" = NULL, "updatedAt" = now() WHERE id = ANY($1)"#,
         )
         .bind(ids)
         .execute(&self.pool)
         .await
         .map_err(db_err)?;
-        Ok(())
+        Ok(result.rows_affected())
     }
 
     pub async fn restore_all_for_user(&self, user_id: Uuid) -> Result<u64> {

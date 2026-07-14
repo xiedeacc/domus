@@ -58,6 +58,7 @@ Current non-ML Immich test inventory:
 | `server/src/dtos/memory.dto.ts` | `server/crates/api/src/dto.rs` memory response optional `deletedAt` and type/data shape |
 | `server/src/controllers/timeline.controller.spec.ts` | `server/crates/api/src/routes/timeline.rs` bbox query parsing and invalid bbox errors |
 | `server/src/services/timeline.service.spec.ts` | `server/crates/domain/src/services/timeline.rs` withPartners incompatible filter validation |
+| `server/src/services/trash.service.spec.ts` | `server/crates/api/src/routes/trash.rs` trash response `{count}` shape; restore-assets returns affected count |
 
 ## Rules
 

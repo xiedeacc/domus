@@ -19,7 +19,10 @@ impl TrashService {
         self.repos.asset.restore_all_for_user(user_id).await
     }
 
-    pub async fn restore(&self, ids: &[Uuid]) -> Result<()> {
+    pub async fn restore(&self, ids: &[Uuid]) -> Result<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
         self.repos.asset.restore(ids).await
     }
 
