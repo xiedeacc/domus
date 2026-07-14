@@ -9,6 +9,25 @@ pub struct DuplicateAsset {
     pub exif_info: Option<Value>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoundingBox {
+    pub x1: f64,
+    pub y1: f64,
+    pub x2: f64,
+    pub y2: f64,
+}
+
+pub fn bounding_box_overlap(a: BoundingBox, b: BoundingBox) -> f64 {
+    let overlap_x = (a.x2.min(b.x2) - a.x1.max(b.x1)).max(0.0);
+    let overlap_y = (a.y2.min(b.y2) - a.y1.max(b.y1)).max(0.0);
+    let overlap_area = overlap_x * overlap_y;
+    let area_a = ((a.x2 - a.x1) * (a.y2 - a.y1)).max(0.0);
+    if area_a == 0.0 {
+        return 0.0;
+    }
+    overlap_area / area_a
+}
+
 pub fn as_date_string(date: Option<chrono::NaiveDate>) -> Option<String> {
     date.map(|date| format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day()))
 }
@@ -171,6 +190,44 @@ mod tests {
             id: id.to_owned(),
             exif_info,
         }
+    }
+
+    fn bbox(x1: f64, y1: f64, x2: f64, y2: f64) -> BoundingBox {
+        BoundingBox { x1, y1, x2, y2 }
+    }
+
+    #[test]
+    fn bounding_box_overlap_matches_immich_editor_cases() {
+        let full = bbox(0.0, 0.0, 100.0, 100.0);
+        assert_eq!(bounding_box_overlap(full, full), 1.0);
+        assert_eq!(
+            bounding_box_overlap(full, bbox(200.0, 200.0, 300.0, 300.0)),
+            0.0
+        );
+        assert_eq!(
+            bounding_box_overlap(full, bbox(50.0, 0.0, 150.0, 100.0)),
+            0.5
+        );
+        assert_eq!(
+            bounding_box_overlap(full, bbox(50.0, 50.0, 150.0, 150.0)),
+            0.25
+        );
+        assert_eq!(
+            bounding_box_overlap(bbox(25.0, 25.0, 75.0, 75.0), full),
+            1.0
+        );
+        assert_eq!(
+            bounding_box_overlap(full, bbox(25.0, 25.0, 75.0, 75.0)),
+            0.25
+        );
+        assert_eq!(
+            bounding_box_overlap(full, bbox(100.0, 0.0, 200.0, 100.0)),
+            0.0
+        );
+        assert_eq!(
+            bounding_box_overlap(full, bbox(0.0, 50.0, 100.0, 150.0)),
+            0.5
+        );
     }
 
     #[test]
