@@ -1,6 +1,6 @@
 use super::db_err;
 use crate::entities::Tag;
-use domus_common::Result;
+use domus_common::{Error, Result};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -38,16 +38,23 @@ impl TagRepository {
         .map_err(db_err)
     }
 
-    pub async fn upsert_value(&self, user_id: Uuid, value: &str) -> Result<Tag> {
+    pub async fn upsert_value(
+        &self,
+        user_id: Uuid,
+        value: &str,
+        parent_id: Option<Uuid>,
+    ) -> Result<Tag> {
         sqlx::query_as::<_, Tag>(
-            r#"INSERT INTO tag ("userId", value)
-               VALUES ($1, $2)
-               ON CONFLICT ("userId", value) DO UPDATE SET "updatedAt" = now()
+            r#"INSERT INTO tag ("userId", value, "parentId")
+               VALUES ($1, $2, $3)
+               ON CONFLICT ("userId", value) DO UPDATE
+               SET "parentId" = COALESCE(tag."parentId", EXCLUDED."parentId"), "updatedAt" = now()
                RETURNING id, "userId" AS user_id, value, color, "parentId" AS parent_id,
                          "createdAt" AS created_at, "updatedAt" AS updated_at"#,
         )
         .bind(user_id)
         .bind(value)
+        .bind(parent_id)
         .fetch_one(&self.pool)
         .await
         .map_err(db_err)
@@ -63,8 +70,6 @@ impl TagRepository {
         sqlx::query_as::<_, Tag>(
             r#"INSERT INTO tag ("userId", value, "parentId", color)
                VALUES ($1, $2, $3, $4)
-               ON CONFLICT ("userId", value) DO UPDATE
-               SET color = COALESCE(EXCLUDED.color, tag.color), "updatedAt" = now()
                RETURNING id, "userId" AS user_id, value, color, "parentId" AS parent_id,
                          "createdAt" AS created_at, "updatedAt" AS updated_at"#,
         )
@@ -74,7 +79,13 @@ impl TagRepository {
         .bind(color)
         .fetch_one(&self.pool)
         .await
-        .map_err(db_err)
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                Error::Conflict("tag already exists".into())
+            } else {
+                db_err(e)
+            }
+        })
     }
 
     pub async fn tag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<u64> {
@@ -123,4 +134,9 @@ impl TagRepository {
             .map_err(db_err)?;
         Ok(())
     }
+}
+
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .is_some_and(|db| db.code().as_deref() == Some("23505"))
 }

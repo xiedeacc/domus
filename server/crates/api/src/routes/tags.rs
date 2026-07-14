@@ -25,11 +25,13 @@ pub fn router() -> Router<AppState> {
 #[serde(rename_all = "camelCase")]
 struct TagResponseDto {
     id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     parent_id: Option<Uuid>,
     name: String,
     value: String,
     created_at: String,
     updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     color: Option<String>,
 }
 
@@ -186,4 +188,49 @@ async fn tag_assets_bulk(
 
 fn iso(dt: &DateTime<Utc>) -> String {
     dt.to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn tag_response_maps_immich_shape_and_leaf_name() {
+        let tag = tag("Parent/Child", Some("#000000"), Some(Uuid::nil()));
+
+        let value = serde_json::to_value(TagResponseDto::from(&tag)).unwrap();
+
+        assert_eq!(value["id"], tag.id.to_string());
+        assert_eq!(value["parentId"], Uuid::nil().to_string());
+        assert_eq!(value["name"], "Child");
+        assert_eq!(value["value"], "Parent/Child");
+        assert_eq!(value["createdAt"], "2026-07-14T12:13:14.000Z");
+        assert_eq!(value["updatedAt"], "2026-07-14T12:13:14.000Z");
+        assert_eq!(value["color"], "#000000");
+    }
+
+    #[test]
+    fn tag_response_omits_optional_null_fields_like_immich() {
+        let tag = tag("Parent", None, None);
+
+        let value = serde_json::to_value(TagResponseDto::from(&tag)).unwrap();
+        let object = value.as_object().unwrap();
+
+        assert!(!object.contains_key("parentId"));
+        assert!(!object.contains_key("color"));
+    }
+
+    fn tag(value: &str, color: Option<&str>, parent_id: Option<Uuid>) -> Tag {
+        let dt = Utc.with_ymd_and_hms(2026, 7, 14, 12, 13, 14).unwrap();
+        Tag {
+            id: Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap(),
+            user_id: Uuid::parse_str("22222222-2222-4222-8222-222222222222").unwrap(),
+            value: value.to_owned(),
+            color: color.map(str::to_owned),
+            parent_id,
+            created_at: dt,
+            updated_at: dt,
+        }
+    }
 }

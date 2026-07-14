@@ -45,6 +45,8 @@ Current non-ML Immich test inventory:
 | `server/src/controllers/server.controller.spec.ts` | `server/crates/api/src/routes/server.rs` authenticated license placeholder, ping/media-types shape |
 | `server/src/services/server.service.spec.ts` | `server/crates/domain/src/services/server.rs` version/features shape with ML features disabled |
 | `server/src/services/version.service.spec.ts` | `server/crates/domain/src/services/server.rs` version response shape |
+| `server/src/controllers/tag.controller.spec.ts` | `server/crates/api/src/routes/tags.rs` tag response shape, optional field omission, null `parentId` input |
+| `server/src/services/tag.service.spec.ts` | `server/crates/domain/src/services/tag.rs` hierarchical tag upsert and slash normalization |
 
 ## Rules
 
