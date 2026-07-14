@@ -1,0 +1,22 @@
+[package]
+name = "domus-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "domus-server"
+path = "src/main.rs"
+
+[dependencies]
+domus-common = { workspace = true }
+domus-db = { workspace = true }
+domus-domain = { workspace = true }
+domus-api = { workspace = true }
+domus-jobs = { workspace = true }
+domus-media = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

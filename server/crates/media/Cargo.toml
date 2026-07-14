@@ -1,0 +1,18 @@
+[package]
+name = "domus-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+domus-common = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+tempfile = { workspace = true }
+mime_guess = { workspace = true }
+sha1 = { workspace = true }
+hex = { workspace = true }
+uuid = { workspace = true }

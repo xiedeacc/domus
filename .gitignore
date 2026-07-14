@@ -1,0 +1,38 @@
+# Rust
+server/target/
+**/*.rs.bk
+
+# Flutter / Dart
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/ephemeral/
+app/linux/flutter/ephemeral/
+app/macos/Flutter/ephemeral/
+app/windows/flutter/ephemeral/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / local
+.env
+*.local
+
+# generic build output (safety net)
+target/
+build/
+*.o
+*.so
+*.dylib

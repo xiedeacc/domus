@@ -1,0 +1,108 @@
+//! Runtime configuration, loaded from environment variables with the same
+//! names Immich uses (IMMICH_*/DB_*) so existing deployments can point at
+//! Domus without changes, plus DOMUS_* overrides.
+
+use figment::providers::Env;
+use figment::Figment;
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    /// HTTP listen host.
+    #[serde(default = "default_host")]
+    pub host: String,
+    /// HTTP listen port (Immich default: 2283).
+    #[serde(default = "default_port")]
+    pub port: u16,
+    /// Root of the media directory (Immich mounts this at /data).
+    #[serde(default = "default_media_location")]
+    pub media_location: String,
+    pub database: DatabaseConfig,
+    #[serde(default)]
+    pub workers: WorkerConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DatabaseConfig {
+    #[serde(default = "default_db_url")]
+    pub url: String,
+    #[serde(default = "default_db_pool")]
+    pub max_connections: u32,
+}
+
+/// Which worker groups this process runs. Mirrors IMMICH_WORKERS_INCLUDE /
+/// IMMICH_WORKERS_EXCLUDE: a single binary can run "api", "microservices"
+/// (background jobs) or both.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkerConfig {
+    #[serde(default = "default_true")]
+    pub api: bool,
+    #[serde(default = "default_true")]
+    pub microservices: bool,
+}
+
+impl Default for WorkerConfig {
+    fn default() -> Self {
+        Self { api: true, microservices: true }
+    }
+}
+
+impl Config {
+    pub fn load() -> crate::Result<Self> {
+        let figment = Figment::new()
+            .merge(Env::prefixed("DOMUS_").split("__"))
+            .join(Env::raw().only(&["HOST", "PORT"]));
+        let mut config: Config = figment
+            .extract()
+            .map_err(|e| crate::Error::Config(e.to_string()))?;
+        config.apply_immich_env();
+        Ok(config)
+    }
+
+    /// Honour the subset of IMMICH_* / DB_* environment variables that map
+    /// onto Domus settings, for drop-in compatibility.
+    fn apply_immich_env(&mut self) {
+        if let Ok(v) = std::env::var("IMMICH_PORT") {
+            if let Ok(port) = v.parse() {
+                self.port = port;
+            }
+        }
+        if let Ok(v) = std::env::var("IMMICH_MEDIA_LOCATION") {
+            self.media_location = v;
+        }
+        if let Ok(v) = std::env::var("DB_URL") {
+            self.database.url = v;
+        }
+    }
+}
+
+fn default_host() -> String {
+    "0.0.0.0".into()
+}
+fn default_port() -> u16 {
+    2283
+}
+fn default_media_location() -> String {
+    "/data".into()
+}
+fn default_db_url() -> String {
+    "postgres://postgres:postgres@localhost:5432/immich".into()
+}
+fn default_db_pool() -> u32 {
+    10
+}
+fn default_true() -> bool {
+    true
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            host: default_host(),
+            port: default_port(),
+            media_location: default_media_location(),
+            database: DatabaseConfig { url: default_db_url(), max_connections: default_db_pool() },
+            workers: WorkerConfig::default(),
+        }
+    }
+}

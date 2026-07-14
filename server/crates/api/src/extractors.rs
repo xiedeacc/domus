@@ -1,0 +1,73 @@
+//! Request extractors — most importantly `Auth`, which resolves the caller
+//! from any of the credential carriers Immich supports:
+//!
+//!   1. `x-api-key` header                        → API key auth
+//!   2. `Authorization: Bearer <token>`           → session auth
+//!   3. cookie `immich_access_token`              → session auth (web)
+//!   4. `x-immich-session-token` header           → session auth (legacy)
+//!   5. query `?key=` / `?slug=`                  → shared-link auth
+
+use crate::error::ApiError;
+use crate::state::AppState;
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use domus_common::Error;
+use domus_domain::services::auth::AuthContext;
+
+pub const COOKIE_ACCESS_TOKEN: &str = "immich_access_token";
+pub const HEADER_API_KEY: &str = "x-api-key";
+pub const HEADER_SESSION_TOKEN: &str = "x-immich-session-token";
+
+pub struct Auth(pub AuthContext);
+
+impl FromRequestParts<AppState> for Auth {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let auth = &state.services.auth;
+
+        if let Some(key) = header(parts, HEADER_API_KEY) {
+            return Ok(Auth(auth.validate_api_key(&key).await?));
+        }
+        if let Some(token) = bearer(parts)
+            .or_else(|| cookie(parts, COOKIE_ACCESS_TOKEN))
+            .or_else(|| header(parts, HEADER_SESSION_TOKEN))
+        {
+            return Ok(Auth(auth.validate_session(&token).await?));
+        }
+        // TODO: shared-link key/slug resolution for public routes.
+        Err(ApiError(Error::Unauthorized("Authentication required".into())))
+    }
+}
+
+/// Same as `Auth` but additionally requires the admin flag.
+pub struct AdminAuth(pub AuthContext);
+
+impl FromRequestParts<AppState> for AdminAuth {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let Auth(ctx) = Auth::from_request_parts(parts, state).await?;
+        if !ctx.is_admin {
+            return Err(ApiError(Error::Forbidden("Forbidden".into())));
+        }
+        Ok(AdminAuth(ctx))
+    }
+}
+
+fn header(parts: &Parts, name: &str) -> Option<String> {
+    parts.headers.get(name)?.to_str().ok().map(str::to_owned)
+}
+
+fn bearer(parts: &Parts) -> Option<String> {
+    let value = parts.headers.get("authorization")?.to_str().ok()?;
+    value.strip_prefix("Bearer ").map(str::to_owned)
+}
+
+fn cookie(parts: &Parts, name: &str) -> Option<String> {
+    let cookies = parts.headers.get("cookie")?.to_str().ok()?;
+    cookies.split(';').find_map(|c| {
+        let (k, v) = c.trim().split_once('=')?;
+        (k == name).then(|| v.to_owned())
+    })
+}

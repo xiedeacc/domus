@@ -1,0 +1,37 @@
+name: domus_app
+description: "Domus — Immich-compatible photo library client for web, Android and iOS."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # state management
+  flutter_riverpod: ^3.1.0
+
+  # navigation
+  go_router: ^17.2.5
+
+  # networking (Immich-compatible REST client)
+  dio: ^5.9.0
+
+  # local key-value storage (server URL, access token)
+  shared_preferences: ^2.5.3
+
+  # UI
+  cupertino_icons: ^1.0.8
+  cached_network_image: ^3.4.1
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
