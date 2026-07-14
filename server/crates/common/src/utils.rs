@@ -1,6 +1,21 @@
 //! Small protocol helpers ported from Immich's `server/src/utils` tests.
 
+use chrono::Datelike;
 use serde_json::{Map, Value};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateAsset {
+    pub id: String,
+    pub exif_info: Option<Value>,
+}
+
+pub fn as_date_string(date: Option<chrono::NaiveDate>) -> Option<String> {
+    date.map(|date| format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day()))
+}
+
+pub fn as_date_time_string(date: Option<chrono::DateTime<chrono::Utc>>) -> Option<String> {
+    date.map(|date| date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+}
 
 pub fn get_keys_deep(target: &Value) -> Vec<String> {
     fn visit(value: &Value, path: &mut Vec<String>, out: &mut Vec<String>) {
@@ -64,6 +79,35 @@ pub fn app_version_from_user_agent(user_agent: &str) -> Option<&str> {
         .or_else(|| user_agent.strip_prefix("Immich_Unknown_"))
 }
 
+pub fn get_exif_count(asset: &DuplicateAsset) -> usize {
+    asset
+        .exif_info
+        .as_ref()
+        .and_then(Value::as_object)
+        .map(|object| object.values().filter(|value| is_js_truthy(value)).count())
+        .unwrap_or_default()
+}
+
+pub fn suggest_duplicate(assets: &[DuplicateAsset]) -> Option<&DuplicateAsset> {
+    assets.iter().max_by_key(|asset| {
+        (
+            asset
+                .exif_info
+                .as_ref()
+                .and_then(|exif| exif.get("fileSizeInByte"))
+                .and_then(Value::as_i64)
+                .unwrap_or_default(),
+            get_exif_count(asset),
+        )
+    })
+}
+
+pub fn suggest_duplicate_keep_asset_ids(assets: &[DuplicateAsset]) -> Vec<String> {
+    suggest_duplicate(assets)
+        .map(|asset| vec![asset.id.clone()])
+        .unwrap_or_default()
+}
+
 fn join_path(path: &[String], key: &str) -> String {
     if path.is_empty() {
         key.to_owned()
@@ -92,6 +136,16 @@ fn is_empty_object(value: &Value) -> bool {
     matches!(value, Value::Object(object) if object.is_empty())
 }
 
+fn is_js_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(value) => *value,
+        Value::Number(value) => value.as_f64() != Some(0.0),
+        Value::String(value) => !value.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
+    }
+}
+
 #[allow(dead_code)]
 fn empty_object() -> Value {
     Value::Object(Map::new())
@@ -100,7 +154,46 @@ fn empty_object() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{NaiveDate, TimeZone, Utc};
     use serde_json::json;
+
+    fn duplicate(id: &str, file_size: Option<i64>, exif: Value) -> DuplicateAsset {
+        let exif_info = if file_size.is_none() && exif.as_object().is_none_or(Map::is_empty) {
+            None
+        } else {
+            let mut object = exif.as_object().cloned().unwrap_or_default();
+            if let Some(file_size) = file_size {
+                object.insert("fileSizeInByte".to_owned(), json!(file_size));
+            }
+            Some(Value::Object(object))
+        };
+        DuplicateAsset {
+            id: id.to_owned(),
+            exif_info,
+        }
+    }
+
+    #[test]
+    fn as_date_string_matches_immich_cases() {
+        assert_eq!(as_date_string(None), None);
+        assert_eq!(
+            as_date_string(Some(NaiveDate::from_ymd_opt(2000, 1, 15).unwrap())),
+            Some("2000-01-15".to_owned())
+        );
+        assert_eq!(
+            as_date_string(Some(NaiveDate::from_ymd_opt(280, 12, 12).unwrap())),
+            Some("0280-12-12".to_owned())
+        );
+    }
+
+    #[test]
+    fn as_date_time_string_matches_immich_cases() {
+        assert_eq!(as_date_time_string(None), None);
+        assert_eq!(
+            as_date_time_string(Some(Utc.with_ymd_and_hms(2000, 1, 15, 12, 0, 0).unwrap())),
+            Some("2000-01-15T12:00:00.000Z".to_owned())
+        );
+    }
 
     #[test]
     fn get_keys_deep_handles_empty_object() {
@@ -203,5 +296,93 @@ mod tests {
             assert_eq!(app_version_from_user_agent(user_agent), Some("1.123.4"));
         }
         assert_eq!(app_version_from_user_agent("Mozilla/5.0"), None);
+    }
+
+    #[test]
+    fn get_exif_count_matches_immich_truthy_count() {
+        assert_eq!(get_exif_count(&duplicate("asset-1", None, json!({}))), 0);
+        assert_eq!(
+            get_exif_count(&duplicate(
+                "asset-1",
+                Some(1000),
+                json!({
+                    "make": "Canon",
+                    "model": "EOS 5D",
+                    "dateTimeOriginal": "2026-07-14T00:00:00.000Z",
+                    "timeZone": "UTC",
+                    "latitude": 40.7128,
+                    "longitude": -74.006,
+                    "city": "New York",
+                    "state": "NY",
+                    "country": "USA",
+                    "description": "A photo",
+                    "rating": 5
+                })
+            )),
+            12
+        );
+        assert_eq!(
+            get_exif_count(&duplicate(
+                "asset-1",
+                Some(1000),
+                json!({"make": "Canon", "model": null, "latitude": null, "city": "", "rating": 0})
+            )),
+            2
+        );
+    }
+
+    #[test]
+    fn suggest_duplicate_returns_none_for_empty_list() {
+        assert!(suggest_duplicate(&[]).is_none());
+        assert_eq!(suggest_duplicate_keep_asset_ids(&[]), Vec::<String>::new());
+    }
+
+    #[test]
+    fn suggest_duplicate_prefers_largest_file_size() {
+        let assets = vec![
+            duplicate("small", Some(1000), json!({})),
+            duplicate("large", Some(5000), json!({})),
+            duplicate("medium", Some(3000), json!({})),
+        ];
+        assert_eq!(suggest_duplicate(&assets).unwrap().id, "large");
+        assert_eq!(suggest_duplicate_keep_asset_ids(&assets), ["large"]);
+    }
+
+    #[test]
+    fn suggest_duplicate_uses_exif_count_as_tie_breaker() {
+        let assets = vec![
+            duplicate("less-exif", Some(1000), json!({"make": "Canon"})),
+            duplicate(
+                "more-exif",
+                Some(1000),
+                json!({
+                    "make": "Canon",
+                    "model": "EOS 5D",
+                    "dateTimeOriginal": "2026-07-14T00:00:00.000Z",
+                    "city": "New York"
+                }),
+            ),
+        ];
+        assert_eq!(suggest_duplicate(&assets).unwrap().id, "more-exif");
+    }
+
+    #[test]
+    fn suggest_duplicate_prioritizes_file_size_over_exif_count() {
+        let assets = vec![
+            duplicate("large-less-exif", Some(5000), json!({"make": "Canon"})),
+            duplicate(
+                "small-more-exif",
+                Some(1000),
+                json!({
+                    "make": "Canon",
+                    "model": "EOS 5D",
+                    "dateTimeOriginal": "2026-07-14T00:00:00.000Z",
+                    "city": "New York",
+                    "state": "NY",
+                    "country": "USA"
+                }),
+            ),
+        ];
+        assert_eq!(suggest_duplicate(&assets).unwrap().id, "large-less-exif");
     }
 }

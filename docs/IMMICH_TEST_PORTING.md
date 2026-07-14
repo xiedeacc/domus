@@ -37,6 +37,8 @@ Current non-ML Immich test inventory:
 | `server/src/cores/storage.core.spec.ts` | `server/crates/media/src/storage.rs` media-root path containment checks |
 | `server/src/dtos/album-response.dto.spec.ts` | `server/crates/api/src/dto.rs` album `startDate`/`endDate` mapping |
 | DTO camelCase contract | `server/crates/api/src/dto.rs` album/user/login response field casing |
+| `server/src/utils/date.spec.ts` | `server/crates/common/src/utils.rs` date and datetime string formatting |
+| `server/src/utils/duplicate.spec.ts` | `server/crates/common/src/utils.rs` duplicate keep-candidate selection |
 
 ## Rules
 
