@@ -17,9 +17,9 @@ pub fn router() -> Router<AppState> {
         .route("/server/features", get(features))
         .route(
             "/server/license",
-            get(super::not_implemented)
-                .put(super::not_implemented)
-                .delete(super::not_implemented),
+            get(authenticated_not_implemented)
+                .put(authenticated_not_implemented)
+                .delete(authenticated_not_implemented),
         )
         .route("/server/media-types", get(media_types))
         .route("/server/ping", get(ping))
@@ -41,6 +41,10 @@ async fn version(State(state): State<AppState>) -> Json<serde_json::Value> {
 
 async fn version_history() -> Json<serde_json::Value> {
     Json(serde_json::json!([]))
+}
+
+async fn authenticated_not_implemented(Auth(_): Auth) -> crate::error::ApiError {
+    super::not_implemented().await
 }
 
 async fn features(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -77,9 +81,45 @@ async fn theme() -> Json<serde_json::Value> {
 }
 
 async fn media_types() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
+    Json(media_types_value())
+}
+
+fn media_types_value() -> serde_json::Value {
+    serde_json::json!({
         "image": [".arw", ".avif", ".bmp", ".cr2", ".cr3", ".dng", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".nef", ".orf", ".pef", ".png", ".raf", ".raw", ".rw2", ".srw", ".tiff", ".webp"],
         "video": [".3gp", ".avi", ".flv", ".m2ts", ".mkv", ".mov", ".mp4", ".mpg", ".mts", ".webm", ".wmv"],
         "sidecar": [".xmp"],
-    }))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn media_types_include_immich_image_video_and_sidecar_groups() {
+        let value = media_types_value();
+        assert!(value["image"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!(".heic")));
+        assert!(value["image"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!(".dng")));
+        assert!(value["video"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!(".mp4")));
+        assert!(value["video"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!(".mov")));
+        assert_eq!(value["sidecar"], serde_json::json!([".xmp"]));
+    }
+
+    #[tokio::test]
+    async fn ping_matches_immich_pong_shape() {
+        assert_eq!(ping().await.0, serde_json::json!({ "res": "pong" }));
+    }
 }

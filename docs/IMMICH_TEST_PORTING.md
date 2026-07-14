@@ -42,6 +42,9 @@ Current non-ML Immich test inventory:
 | `server/src/controllers/auth.controller.spec.ts` | `server/crates/api/src/routes/auth.rs` email normalization and auth cookie contract |
 | Auth credential carriers | `server/crates/api/src/extractors.rs` bearer/cookie/API-key/legacy/shared-link extraction |
 | `server/src/controllers/api-key.controller.spec.ts` | `server/crates/api/src/routes/api_keys.rs` API key default name and response casing |
+| `server/src/controllers/server.controller.spec.ts` | `server/crates/api/src/routes/server.rs` authenticated license placeholder, ping/media-types shape |
+| `server/src/services/server.service.spec.ts` | `server/crates/domain/src/services/server.rs` version/features shape with ML features disabled |
+| `server/src/services/version.service.spec.ts` | `server/crates/domain/src/services/server.rs` version response shape |
 
 ## Rules
 

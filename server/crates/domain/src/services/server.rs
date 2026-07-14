@@ -22,11 +22,19 @@ impl ServerService {
     }
 
     pub fn version(&self) -> serde_json::Value {
+        Self::version_value()
+    }
+
+    pub fn version_value() -> serde_json::Value {
         let (major, minor, patch) = COMPAT_VERSION;
-        json!({ "major": major, "minor": minor, "patch": patch })
+        json!({ "major": major, "minor": minor, "patch": patch, "prerelease": null })
     }
 
     pub fn features(&self) -> serde_json::Value {
+        Self::features_value()
+    }
+
+    pub fn features_value() -> serde_json::Value {
         json!({
             "smartSearch": false,          // no ML service
             "facialRecognition": false,    // no ML service
@@ -83,5 +91,29 @@ impl ServerService {
             "diskSizeRaw": 0, "diskUseRaw": 0, "diskAvailableRaw": 0,
             "diskUsagePercentage": 0.0,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_matches_immich_version_shape() {
+        assert_eq!(
+            ServerService::version_value(),
+            json!({ "major": 3, "minor": 0, "patch": 2, "prerelease": null })
+        );
+    }
+
+    #[test]
+    fn features_disable_ml_related_capabilities() {
+        let features = ServerService::features_value();
+        assert_eq!(features["smartSearch"], false);
+        assert_eq!(features["duplicateDetection"], false);
+        assert_eq!(features["facialRecognition"], false);
+        assert_eq!(features["ocr"], false);
+        assert_eq!(features["passwordLogin"], true);
+        assert_eq!(features["map"], true);
     }
 }
