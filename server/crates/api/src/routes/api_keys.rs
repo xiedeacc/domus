@@ -123,3 +123,34 @@ fn default_key_name() -> String {
 fn iso(dt: &DateTime<Utc>) -> String {
     dt.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_key_name_matches_immich_api_key_service() {
+        assert_eq!(default_key_name(), "API Key");
+    }
+
+    #[test]
+    fn api_key_response_uses_immich_camel_case_fields() {
+        let key = ApiKey {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000001").unwrap(),
+            name: "API Key".to_owned(),
+            key: "hash".to_owned(),
+            user_id: Uuid::parse_str("10000000-0000-0000-0000-000000000002").unwrap(),
+            permissions: vec!["all".to_owned()],
+            created_at: DateTime::parse_from_rfc3339("2026-07-14T01:02:03.456Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339("2026-07-14T01:02:03.456Z")
+                .unwrap()
+                .with_timezone(&Utc),
+        };
+        let value = serde_json::to_value(ApiKeyResponseDto::from(&key)).unwrap();
+        for field in ["createdAt", "updatedAt", "permissions"] {
+            assert!(value.get(field).is_some(), "{field} missing");
+        }
+    }
+}

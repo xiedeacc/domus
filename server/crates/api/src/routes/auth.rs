@@ -9,7 +9,10 @@ use axum::http::header::SET_COOKIE;
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
 use axum::{Json, Router};
+use chrono::{Duration, Utc};
 use serde::Deserialize;
+
+const AUTH_COOKIE_MAX_AGE_SECONDS: i64 = 34_560_000;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -34,24 +37,15 @@ async fn login(
     State(state): State<AppState>,
     Json(dto): Json<LoginCredentialDto>,
 ) -> ApiResult<(StatusCode, HeaderMap, Json<LoginResponseDto>)> {
+    let email = normalize_email(&dto.email);
     let outcome = state
         .services
         .auth
-        .login(&dto.email, &dto.password, ("WEB", ""))
+        .login(&email, &dto.password, ("WEB", ""))
         .await?;
 
     // Web clients rely on these cookies; API/mobile clients use the token.
-    let mut headers = HeaderMap::new();
-    for cookie in [
-        format!(
-            "immich_access_token={}; Path=/; HttpOnly; SameSite=Lax",
-            outcome.token
-        ),
-        "immich_auth_type=password; Path=/; HttpOnly; SameSite=Lax".to_string(),
-        "immich_is_authenticated=true; Path=/; SameSite=Lax".to_string(),
-    ] {
-        headers.append(SET_COOKIE, cookie.parse().unwrap());
-    }
+    let headers = auth_headers(&outcome.token, "password");
 
     let user = outcome.user;
     Ok((
@@ -94,14 +88,66 @@ async fn admin_sign_up(
     State(state): State<AppState>,
     Json(dto): Json<SignUpDto>,
 ) -> ApiResult<(StatusCode, Json<UserAdminResponseDto>)> {
+    let email = normalize_email(&dto.email);
     let user = state
         .services
         .auth
-        .admin_sign_up(&dto.email, &dto.password, &dto.name)
+        .admin_sign_up(&email, &dto.password, &dto.name)
         .await?;
     Ok((StatusCode::CREATED, Json((&user).into())))
 }
 
 async fn validate_token(Auth(_ctx): Auth) -> Json<serde_json::Value> {
     Json(serde_json::json!({ "authStatus": true }))
+}
+
+pub(crate) fn auth_headers(token: &str, auth_type: &str) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    for cookie in auth_cookies(token, auth_type) {
+        headers.append(SET_COOKIE, cookie.parse().unwrap());
+    }
+    headers
+}
+
+pub(crate) fn auth_cookies(token: &str, auth_type: &str) -> [String; 3] {
+    let expires = (Utc::now() + Duration::seconds(AUTH_COOKIE_MAX_AGE_SECONDS))
+        .to_rfc2822()
+        .replace("+0000", "GMT");
+    let attrs =
+        format!("Max-Age={AUTH_COOKIE_MAX_AGE_SECONDS}; Path=/; Expires={expires}; SameSite=Lax");
+    [
+        format!("immich_access_token={token}; {attrs}; HttpOnly"),
+        format!("immich_auth_type={auth_type}; {attrs}; HttpOnly"),
+        format!("immich_is_authenticated=true; {attrs}"),
+    ]
+}
+
+fn normalize_email(email: &str) -> String {
+    email.to_ascii_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_email_matches_immich_auth_dto() {
+        assert_eq!(normalize_email("aDmIn@IMMICH.cloud"), "admin@immich.cloud");
+        assert_eq!(normalize_email("admin@local"), "admin@local");
+    }
+
+    #[test]
+    fn auth_cookies_match_immich_cookie_contract() {
+        let cookies = auth_cookies("access-token", "password");
+        assert_eq!(cookies.len(), 3);
+        assert!(cookies[0].starts_with("immich_access_token=access-token;"));
+        assert!(cookies[1].starts_with("immich_auth_type=password;"));
+        assert!(cookies[2].starts_with("immich_is_authenticated=true;"));
+        for cookie in cookies {
+            assert!(cookie.contains("Max-Age=34560000"));
+            assert!(cookie.contains("Path=/"));
+            assert!(cookie.contains("Expires="));
+            assert!(cookie.contains("SameSite=Lax"));
+        }
+    }
 }

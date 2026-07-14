@@ -3,9 +3,9 @@
 use crate::dto::{LoginResponseDto, UserAdminResponseDto};
 use crate::error::{ApiError, ApiResult};
 use crate::extractors::Auth;
+use crate::routes::auth::auth_headers;
 use crate::state::AppState;
 use axum::extract::{Query, State};
-use axum::http::header::SET_COOKIE;
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -258,17 +258,7 @@ fn str_field<'a>(value: &'a serde_json::Value, field: &str) -> ApiResult<&'a str
 }
 
 fn login_response(outcome: LoginOutcome) -> (StatusCode, HeaderMap, Json<LoginResponseDto>) {
-    let mut headers = HeaderMap::new();
-    for cookie in [
-        format!(
-            "immich_access_token={}; Path=/; HttpOnly; SameSite=Lax",
-            outcome.token
-        ),
-        "immich_auth_type=oauth; Path=/; HttpOnly; SameSite=Lax".to_string(),
-        "immich_is_authenticated=true; Path=/; SameSite=Lax".to_string(),
-    ] {
-        headers.append(SET_COOKIE, cookie.parse().unwrap());
-    }
+    let headers = auth_headers(&outcome.token, "oauth");
     let user = outcome.user;
     (
         StatusCode::CREATED,

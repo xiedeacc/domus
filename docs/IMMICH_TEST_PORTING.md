@@ -39,6 +39,9 @@ Current non-ML Immich test inventory:
 | DTO camelCase contract | `server/crates/api/src/dto.rs` album/user/login response field casing |
 | `server/src/utils/date.spec.ts` | `server/crates/common/src/utils.rs` date and datetime string formatting |
 | `server/src/utils/duplicate.spec.ts` | `server/crates/common/src/utils.rs` duplicate keep-candidate selection |
+| `server/src/controllers/auth.controller.spec.ts` | `server/crates/api/src/routes/auth.rs` email normalization and auth cookie contract |
+| Auth credential carriers | `server/crates/api/src/extractors.rs` bearer/cookie/API-key/legacy/shared-link extraction |
+| `server/src/controllers/api-key.controller.spec.ts` | `server/crates/api/src/routes/api_keys.rs` API key default name and response casing |
 
 ## Rules
 

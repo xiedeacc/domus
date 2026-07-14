@@ -101,3 +101,74 @@ fn shared_link_query(parts: &Parts) -> (Option<String>, Option<String>) {
     }
     (key, slug)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+
+    fn parts(request: Request<()>) -> Parts {
+        request.into_parts().0
+    }
+
+    #[test]
+    fn bearer_reads_authorization_header() {
+        let parts = parts(
+            Request::builder()
+                .header("authorization", "Bearer session-token")
+                .body(())
+                .unwrap(),
+        );
+        assert_eq!(bearer(&parts), Some("session-token".to_owned()));
+    }
+
+    #[test]
+    fn cookie_reads_immich_access_token() {
+        let parts = parts(
+            Request::builder()
+                .header(
+                    "cookie",
+                    "other=1; immich_access_token=session-token; theme=dark",
+                )
+                .body(())
+                .unwrap(),
+        );
+        assert_eq!(
+            cookie(&parts, COOKIE_ACCESS_TOKEN),
+            Some("session-token".to_owned())
+        );
+    }
+
+    #[test]
+    fn header_reads_api_key_and_legacy_session_token() {
+        let parts = parts(
+            Request::builder()
+                .header(HEADER_API_KEY, "api-secret")
+                .header(HEADER_SESSION_TOKEN, "legacy-session")
+                .body(())
+                .unwrap(),
+        );
+        assert_eq!(
+            header(&parts, HEADER_API_KEY),
+            Some("api-secret".to_owned())
+        );
+        assert_eq!(
+            header(&parts, HEADER_SESSION_TOKEN),
+            Some("legacy-session".to_owned())
+        );
+    }
+
+    #[test]
+    fn shared_link_query_reads_key_and_slug() {
+        let parts = parts(
+            Request::builder()
+                .uri("/api/assets/1/original?key=abc123&slug=summer")
+                .body(())
+                .unwrap(),
+        );
+        assert_eq!(
+            shared_link_query(&parts),
+            (Some("abc123".to_owned()), Some("summer".to_owned()))
+        );
+    }
+}
