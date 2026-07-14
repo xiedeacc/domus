@@ -54,6 +54,8 @@ Current non-ML Immich test inventory:
 | `server/src/dtos/shared-link.dto.ts` | `server/crates/api/src/dto.rs` shared-link response key/type/showMetadata field compatibility |
 | `server/src/services/stack.service.spec.ts` | `server/crates/domain/src/services/stack.rs` min-2 create validation; `server/crates/api/src/dto.rs` primary-first response shape |
 | `server/src/dtos/stack.dto.ts` | `server/crates/api/src/dto.rs` stack response omits non-Immich `ownerId` |
+| `server/src/controllers/memory.controller.spec.ts` | `server/crates/domain/src/services/memory.rs` on-this-day data and non-empty update validation |
+| `server/src/dtos/memory.dto.ts` | `server/crates/api/src/dto.rs` memory response optional `deletedAt` and type/data shape |
 
 ## Rules
 

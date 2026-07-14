@@ -312,6 +312,8 @@ pub struct MemoryResponseDto {
     pub memory_at: String,
     pub is_saved: bool,
     pub seen_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub assets: Vec<AssetResponseDto>,
@@ -327,6 +329,7 @@ impl MemoryResponseDto {
             memory_at: iso(&memory.memory_at),
             is_saved: memory.is_saved,
             seen_at: memory.seen_at.as_ref().map(iso),
+            deleted_at: memory.deleted_at.as_ref().map(iso),
             created_at: iso(&memory.created_at),
             updated_at: iso(&memory.updated_at),
             assets,
@@ -518,6 +521,21 @@ mod tests {
         }
     }
 
+    fn memory(deleted: bool) -> Memory {
+        Memory {
+            id: Uuid::parse_str("10000000-0000-0000-0000-000000000040").unwrap(),
+            owner_id: Uuid::parse_str("10000000-0000-0000-0000-000000000003").unwrap(),
+            memory_type: "on_this_day".to_owned(),
+            data: json!({"year": 2020}),
+            memory_at: dt("2026-07-14T01:02:03.456Z"),
+            is_saved: false,
+            seen_at: None,
+            created_at: dt("2026-07-14T01:02:03.456Z"),
+            updated_at: dt("2026-07-14T01:02:03.456Z"),
+            deleted_at: deleted.then(|| dt("2026-07-15T01:02:03.456Z")),
+        }
+    }
+
     fn stack() -> Stack {
         Stack {
             id: Uuid::parse_str("10000000-0000-0000-0000-000000000030").unwrap(),
@@ -645,6 +663,19 @@ mod tests {
         assert_eq!(value["type"], "INDIVIDUAL");
         assert_eq!(value["showMetadata"], false);
         assert!(value.get("showExif").is_none());
+    }
+
+    #[test]
+    fn memory_response_uses_immich_optional_deleted_at_shape() {
+        let active =
+            serde_json::to_value(MemoryResponseDto::from_memory(&memory(false), vec![])).unwrap();
+        assert!(active.get("deletedAt").is_none());
+
+        let deleted =
+            serde_json::to_value(MemoryResponseDto::from_memory(&memory(true), vec![])).unwrap();
+        assert_eq!(deleted["deletedAt"], "2026-07-15T01:02:03.456Z");
+        assert_eq!(deleted["type"], "on_this_day");
+        assert_eq!(deleted["data"], json!({"year": 2020}));
     }
 
     #[test]
