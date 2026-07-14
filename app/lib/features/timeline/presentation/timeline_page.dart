@@ -116,7 +116,6 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                           ignoring: !_showDateControls && _range == null,
                           child: _TimelineDateControls(
                             granularity: _granularity,
-                            range: _range,
                             onGranularityChanged: (value) {
                               setState(() {
                                 _granularity = value;
@@ -132,7 +131,6 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                                 }
                               });
                             },
-                            onClearRange: () => setState(() => _range = null),
                           ),
                         ),
                       ),
@@ -148,90 +146,25 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
 class _TimelineDateControls extends StatelessWidget {
   const _TimelineDateControls({
     required this.granularity,
-    required this.range,
     required this.onGranularityChanged,
-    required this.onClearRange,
   });
 
   final TimelineGranularity granularity;
-  final TimelineDateRange? range;
   final ValueChanged<TimelineGranularity> onGranularityChanged;
-  final VoidCallback onClearRange;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
+    return Center(
+      child: SegmentedButton<TimelineGranularity>(
+        segments: [
+          for (final value in TimelineGranularity.values)
+            ButtonSegment(value: value, label: Text(value.label)),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final granularityPicker = SegmentedButton<TimelineGranularity>(
-              segments: [
-                for (final value in TimelineGranularity.values)
-                  ButtonSegment(value: value, label: Text(value.label)),
-              ],
-              selected: {granularity},
-              onSelectionChanged: (values) {
-                onGranularityChanged(values.single);
-              },
-              showSelectedIcon: false,
-            );
-            final selectedLabel = Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.check_circle_outline, size: 20),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    range?.label(granularity) ?? 'Select with checkmarks',
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            );
-            final clearButton = IconButton(
-              tooltip: 'Clear',
-              onPressed: range == null ? null : onClearRange,
-              icon: const Icon(Icons.close),
-            );
-            if (constraints.maxWidth < 420) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  granularityPicker,
-                  Row(
-                    children: [
-                      Expanded(child: selectedLabel),
-                      clearButton,
-                    ],
-                  ),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                granularityPicker,
-                const SizedBox(width: 8),
-                Expanded(child: selectedLabel),
-                clearButton,
-              ],
-            );
-          },
-        ),
+        selected: {granularity},
+        onSelectionChanged: (values) {
+          onGranularityChanged(values.single);
+        },
+        showSelectedIcon: false,
       ),
     );
   }
