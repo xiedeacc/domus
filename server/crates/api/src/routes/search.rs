@@ -6,6 +6,7 @@ use crate::state::AppState;
 use axum::extract::{Query, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use domus_domain::services::search::{parse_suggestion_type, validate_random_filters};
 use serde::Deserialize;
 
 #[rustfmt::skip]
@@ -40,7 +41,9 @@ async fn metadata(
 async fn random(
     State(state): State<AppState>,
     Auth(ctx): Auth,
+    Json(filters): Json<serde_json::Value>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    validate_random_filters(&filters)?;
     Ok(Json(
         state
             .services
@@ -59,22 +62,30 @@ async fn explore(
 
 #[derive(Deserialize)]
 struct SuggestionQuery {
-    #[serde(default = "default_suggestion_kind")]
-    kind: String,
+    #[serde(rename = "type")]
+    suggestion_type: Option<String>,
+    #[serde(default, rename = "includeNull")]
+    include_null: bool,
 }
 
 async fn suggestions(
     State(state): State<AppState>,
     Auth(ctx): Auth,
     Query(query): Query<SuggestionQuery>,
-) -> ApiResult<Json<Vec<String>>> {
-    Ok(Json(
-        state
-            .services
-            .search
-            .suggestions(ctx.user_id, &query.kind)
-            .await?,
-    ))
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let suggestion_type = parse_suggestion_type(query.suggestion_type.as_deref().unwrap_or(""))?;
+    let mut suggestions = state
+        .services
+        .search
+        .suggestions(ctx.user_id, suggestion_type)
+        .await?
+        .into_iter()
+        .map(serde_json::Value::String)
+        .collect::<Vec<_>>();
+    if query.include_null {
+        suggestions.push(serde_json::Value::Null);
+    }
+    Ok(Json(suggestions))
 }
 
 async fn cities(State(state): State<AppState>, Auth(ctx): Auth) -> ApiResult<Json<Vec<String>>> {
@@ -95,8 +106,4 @@ async fn places(State(state): State<AppState>, Auth(ctx): Auth) -> ApiResult<Jso
             .suggestions(ctx.user_id, "country")
             .await?,
     ))
-}
-
-fn default_suggestion_kind() -> String {
-    "city".to_owned()
 }

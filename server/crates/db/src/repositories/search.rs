@@ -58,7 +58,11 @@ impl SearchRepository {
     pub async fn suggestions(&self, user_id: Uuid, kind: &str) -> Result<Vec<String>> {
         let column = match kind {
             "city" | "cities" => "city",
+            "state" => "state",
             "country" | "countries" => "country",
+            "camera-make" => "\"make\"",
+            "camera-model" => "model",
+            "camera-lens-model" => "\"lensModel\"",
             _ => "city",
         };
         let sql = format!(

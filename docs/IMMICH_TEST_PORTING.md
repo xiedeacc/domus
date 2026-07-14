@@ -59,6 +59,8 @@ Current non-ML Immich test inventory:
 | `server/src/controllers/timeline.controller.spec.ts` | `server/crates/api/src/routes/timeline.rs` bbox query parsing and invalid bbox errors |
 | `server/src/services/timeline.service.spec.ts` | `server/crates/domain/src/services/timeline.rs` withPartners incompatible filter validation |
 | `server/src/services/trash.service.spec.ts` | `server/crates/api/src/routes/trash.rs` trash response `{count}` shape; restore-assets returns affected count |
+| `server/src/controllers/search.controller.spec.ts` | `server/crates/domain/src/services/search.rs` metadata/random filter validation and required suggestion `type` enum |
+| `server/src/services/search.service.spec.ts` | `server/crates/db/src/repositories/search.rs` non-ML suggestion kinds for country/state/city/camera/lens |
 
 ## Rules
 
