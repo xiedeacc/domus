@@ -526,11 +526,46 @@ fn validate_cron(value: &Value, path: &str) -> Result<()> {
     let Some(cron) = value.pointer(path).and_then(Value::as_str) else {
         return Ok(());
     };
-    let parts = cron.split_whitespace().count();
-    if parts == 5 || parts == 6 {
+    if is_valid_cron_expression(cron) {
         return Ok(());
     }
     Err(path_error(path, "a valid cron expression"))
+}
+
+fn is_valid_cron_expression(value: &str) -> bool {
+    let parts = value.split_whitespace().collect::<Vec<_>>();
+    let ranges: &[(i64, i64)] = match parts.len() {
+        5 => &[(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)],
+        6 => &[(0, 59), (0, 59), (0, 23), (1, 31), (1, 12), (0, 7)],
+        _ => return false,
+    };
+    parts
+        .iter()
+        .zip(ranges)
+        .all(|(field, range)| is_valid_cron_field(field, *range))
+}
+
+fn is_valid_cron_field(field: &str, (min, max): (i64, i64)) -> bool {
+    field
+        .split(',')
+        .all(|part| is_valid_cron_field_part(part, min, max))
+}
+
+fn is_valid_cron_field_part(part: &str, min: i64, max: i64) -> bool {
+    let (base, step) = part.split_once('/').unwrap_or((part, ""));
+    if !step.is_empty() && !matches!(step.parse::<i64>(), Ok(step) if step > 0) {
+        return false;
+    }
+    if base == "*" {
+        return true;
+    }
+    if let Some((start, end)) = base.split_once('-') {
+        let (Ok(start), Ok(end)) = (start.parse::<i64>(), end.parse::<i64>()) else {
+            return false;
+        };
+        return min <= start && start <= end && end <= max;
+    }
+    matches!(base.parse::<i64>(), Ok(value) if min <= value && value <= max)
 }
 
 fn validate_url(value: &Value, path: &str, allow_empty: bool) -> Result<()> {
@@ -977,6 +1012,25 @@ mod tests {
                 .and_then(|v| v.as_str()),
             Some("0 0 */3 * *")
         );
+    }
+
+    #[test]
+    fn validates_cron_field_ranges_like_immich() {
+        for cron in ["0 0 */3 * *", "0,30 1-4 * * *", "0 0 2 * * *"] {
+            let config = merge_with_defaults(serde_json::json!({
+                "library": {"scan": {"cronExpression": cron}}
+            }));
+            validate_config(&config).unwrap();
+        }
+
+        for cron in ["99 99 * * *", "0 24 * * *", "0 0 0 * *", "0 0 * 13 *"] {
+            let config = merge_with_defaults(serde_json::json!({
+                "library": {"scan": {"cronExpression": cron}}
+            }));
+            let err = validate_config(&config).unwrap_err().to_string();
+            assert!(err.contains("library.scan.cronExpression"), "{cron}");
+            assert!(err.contains("cron"), "{cron}");
+        }
     }
 
     #[test]
