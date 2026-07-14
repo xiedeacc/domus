@@ -261,7 +261,8 @@ pub fn default_storage_template() -> serde_json::Value {
 pub fn merge_with_defaults(value: Value) -> Value {
     let defaults = default_config();
     let mut merged = merge_json(defaults.clone(), value);
-    coerce_bool_strings(&defaults, &mut merged);
+    coerce_scalar_strings(&defaults, &mut merged);
+    normalize_external_domain(&mut merged);
     merged
 }
 
@@ -288,7 +289,7 @@ fn merge_json(mut base: Value, overlay: Value) -> Value {
     }
 }
 
-fn coerce_bool_strings(schema: &Value, value: &mut Value) {
+fn coerce_scalar_strings(schema: &Value, value: &mut Value) {
     match schema {
         Value::Bool(_) => {
             if let Value::String(text) = value {
@@ -297,11 +298,22 @@ fn coerce_bool_strings(schema: &Value, value: &mut Value) {
                 }
             }
         }
+        Value::Number(_) => {
+            if let Value::String(text) = value {
+                if let Ok(parsed) = text.parse::<i64>() {
+                    *value = Value::Number(parsed.into());
+                } else if let Ok(parsed) = text.parse::<f64>() {
+                    if let Some(parsed) = serde_json::Number::from_f64(parsed) {
+                        *value = Value::Number(parsed);
+                    }
+                }
+            }
+        }
         Value::Object(schema) => {
             if let Value::Object(value) = value {
                 for (key, child) in value {
                     if let Some(child_schema) = schema.get(key) {
-                        coerce_bool_strings(child_schema, child);
+                        coerce_scalar_strings(child_schema, child);
                     }
                 }
             }
@@ -309,12 +321,26 @@ fn coerce_bool_strings(schema: &Value, value: &mut Value) {
         Value::Array(schema) => {
             if let (Some(item_schema), Value::Array(value)) = (schema.first(), value) {
                 for item in value {
-                    coerce_bool_strings(item_schema, item);
+                    coerce_scalar_strings(item_schema, item);
                 }
             }
         }
         _ => {}
     }
+}
+
+fn normalize_external_domain(value: &mut Value) {
+    let Some(domain) = value
+        .pointer_mut("/server/externalDomain")
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
+    else {
+        return;
+    };
+    if domain.is_empty() {
+        return;
+    }
+    value["server"]["externalDomain"] = Value::String(domain.trim_end_matches('/').to_owned());
 }
 
 fn validate_against_schema(schema: &Value, value: &Value, path: &[&str]) -> Result<()> {
@@ -873,6 +899,83 @@ mod tests {
                 .pointer("/nightlyTasks/databaseCleanup")
                 .and_then(|v| v.as_bool()),
             Some(false)
+        );
+    }
+
+    #[test]
+    fn coerces_config_number_strings_like_immich() {
+        let config = merge_with_defaults(serde_json::json!({
+            "ffmpeg": {
+                "crf": "30",
+                "threads": "42"
+            },
+            "trash": {"days": "10"},
+            "user": {"deleteDelay": "15"}
+        }));
+        validate_config(&config).unwrap();
+        assert_eq!(
+            config.pointer("/ffmpeg/crf").and_then(|v| v.as_i64()),
+            Some(30)
+        );
+        assert_eq!(
+            config.pointer("/ffmpeg/threads").and_then(|v| v.as_i64()),
+            Some(42)
+        );
+        assert_eq!(
+            config.pointer("/trash/days").and_then(|v| v.as_i64()),
+            Some(10)
+        );
+        assert_eq!(
+            config.pointer("/user/deleteDelay").and_then(|v| v.as_i64()),
+            Some(15)
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_number_strings_like_immich() {
+        let config = merge_with_defaults(serde_json::json!({
+            "ffmpeg": {"crf": "not-a-number"}
+        }));
+        let err = validate_config(&config).unwrap_err().to_string();
+        assert!(err.contains("ffmpeg.crf"));
+        assert!(err.contains("expected number"));
+    }
+
+    #[test]
+    fn normalizes_external_domain_like_immich() {
+        for (input, expected) in [
+            ("https://demo.immich.app/", "https://demo.immich.app"),
+            ("https://demo.immich.app", "https://demo.immich.app"),
+            ("https://demo.immich.app:42", "https://demo.immich.app:42"),
+            (
+                "https://user:password@example.com:123/",
+                "https://user:password@example.com:123",
+            ),
+        ] {
+            let config = merge_with_defaults(serde_json::json!({
+                "server": {"externalDomain": input}
+            }));
+            validate_config(&config).unwrap();
+            assert_eq!(
+                config
+                    .pointer("/server/externalDomain")
+                    .and_then(|v| v.as_str()),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_valid_cron_expressions_like_immich() {
+        let config = merge_with_defaults(serde_json::json!({
+            "library": {"scan": {"cronExpression": "0 0 */3 * *"}}
+        }));
+        validate_config(&config).unwrap();
+        assert_eq!(
+            config
+                .pointer("/library/scan/cronExpression")
+                .and_then(|v| v.as_str()),
+            Some("0 0 */3 * *")
         );
     }
 
