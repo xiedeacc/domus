@@ -9,10 +9,22 @@ class HomeShell extends StatelessWidget {
   final StatefulNavigationShell shell;
 
   static const _destinations = [
-    (icon: Icons.photo_outlined, label: 'Photos'),
-    (icon: Icons.photo_album_outlined, label: 'Albums'),
-    (icon: Icons.search, label: 'Search'),
-    (icon: Icons.auto_awesome_outlined, label: 'Memories'),
+    (
+      icon: Icons.photo_library_outlined,
+      selectedIcon: Icons.photo_library,
+      label: '照片',
+    ),
+    (icon: Icons.search, selectedIcon: Icons.search, label: '搜索'),
+    (
+      icon: Icons.photo_album_outlined,
+      selectedIcon: Icons.photo_album,
+      label: '相簿',
+    ),
+    (
+      icon: Icons.grid_view_outlined,
+      selectedIcon: Icons.grid_view,
+      label: '资源库',
+    ),
   ];
 
   @override
@@ -31,6 +43,7 @@ class HomeShell extends StatelessWidget {
                 for (final d in _destinations)
                   NavigationRailDestination(
                     icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
                     label: Text(d.label),
                   ),
               ],
@@ -44,13 +57,115 @@ class HomeShell extends StatelessWidget {
 
     return Scaffold(
       body: shell,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: _ImmichBottomNavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: shell.goBranch,
-        destinations: [
-          for (final d in _destinations)
-            NavigationDestination(icon: Icon(d.icon), label: d.label),
-        ],
+      ),
+    );
+  }
+}
+
+class _ImmichBottomNavigationBar extends StatelessWidget {
+  const _ImmichBottomNavigationBar({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 92 + bottomInset.clamp(0, 10),
+          child: Row(
+            children: [
+              for (var i = 0; i < HomeShell._destinations.length; i++)
+                Expanded(
+                  child: _ImmichNavItem(
+                    icon: HomeShell._destinations[i].icon,
+                    selectedIcon: HomeShell._destinations[i].selectedIcon,
+                    label: HomeShell._destinations[i].label,
+                    selected: selectedIndex == i,
+                    onTap: () => onDestinationSelected(i),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImmichNavItem extends StatelessWidget {
+  const _ImmichNavItem({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final active = colors.primary;
+    final inactive = colors.onSurfaceVariant;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: label,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 44,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              width: 72,
+              height: 40,
+              decoration: BoxDecoration(
+                color: selected
+                    ? active.withValues(alpha: 0.14)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(
+                selected ? selectedIcon : icon,
+                color: selected ? active : inactive,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: selected ? colors.onSurface : inactive,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

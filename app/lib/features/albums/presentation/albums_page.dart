@@ -20,9 +20,10 @@ class AlbumsPage extends ConsumerWidget {
       ),
       body: albums.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
+        error: (e, _) =>
+            _AlbumsErrorView(onRetry: () => ref.invalidate(albumsProvider)),
         data: (albums) => albums.isEmpty
-            ? const Center(child: Text('No albums yet'))
+            ? const _EmptyAlbumsView()
             : GridView.builder(
                 padding: const EdgeInsets.all(12),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -136,4 +137,58 @@ class _CreateAlbumDialogState extends State<_CreateAlbumDialog> {
       ),
     ],
   );
+}
+
+class _EmptyAlbumsView extends StatelessWidget {
+  const _EmptyAlbumsView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.photo_album_outlined, size: 56),
+            const SizedBox(height: 12),
+            Text('还没有相簿', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text('点右下角的加号创建一个相簿。'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumsErrorView extends StatelessWidget {
+  const _AlbumsErrorView({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 48),
+            const SizedBox(height: 12),
+            Text('相簿加载失败', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text('请确认服务器在线后重试。', textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

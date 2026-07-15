@@ -8,7 +8,7 @@ import '../../features/auth/application/auth_provider.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/backup/presentation/backup_page.dart';
 import '../../features/folders/presentation/folders_page.dart';
-import '../../features/memories/presentation/memories_page.dart';
+import '../../features/library/presentation/library_page.dart';
 import '../../features/search/presentation/search_page.dart';
 import '../../features/search/presentation/global_map_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
@@ -42,6 +42,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
+              GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
               GoRoute(
                 path: '/albums',
                 builder: (_, _) => const AlbumsPage(),
@@ -57,15 +62,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/memories',
-                builder: (_, _) => const MemoriesPage(),
-              ),
+              GoRoute(path: '/library', builder: (_, _) => const LibraryPage()),
             ],
           ),
         ],

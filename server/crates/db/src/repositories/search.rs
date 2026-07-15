@@ -43,7 +43,18 @@ impl SearchRepository {
                LEFT JOIN asset_exif e ON e."assetId" = a.id
                WHERE a."ownerId" = ANY($1)
                  AND a."deletedAt" IS NULL
-                 AND ($2 = '%%' OR a."originalFileName" ILIKE $2 ESCAPE '\')
+                 AND (
+                    $2 = '%%'
+                    OR a."originalFileName" ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e.city, '') ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e.state, '') ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e.country, '') ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e.make, '') ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e.model, '') ILIKE $2 ESCAPE '\'
+                    OR COALESCE(e."lensModel", '') ILIKE $2 ESCAPE '\'
+                    OR to_char(a."localDateTime", 'YYYY-MM-DD') ILIKE $2 ESCAPE '\'
+                    OR to_char(a."fileCreatedAt", 'YYYY-MM-DD') ILIKE $2 ESCAPE '\'
+                 )
                ORDER BY a."localDateTime" DESC
                LIMIT 250"#,
         )
