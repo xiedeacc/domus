@@ -9,7 +9,8 @@ pub mod routes;
 pub mod state;
 pub mod websocket;
 
-use axum::Router;
+use axum::routing::get;
+use axum::{Json, Router};
 use state::AppState;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -49,8 +50,35 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::views::router());
 
     Router::new()
-        .nest("/api", api)
+        .route("/.well-known/immich", get(well_known_immich))
+        .nest("/api", api.clone())
+        .merge(api)
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+async fn well_known_immich() -> Json<serde_json::Value> {
+    Json(well_known_immich_value())
+}
+
+fn well_known_immich_value() -> serde_json::Value {
+    serde_json::json!({
+        "api": {
+            "endpoint": "/api"
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn well_known_points_native_clients_to_api_endpoint() {
+        assert_eq!(
+            well_known_immich_value(),
+            serde_json::json!({ "api": { "endpoint": "/api" } })
+        );
+    }
 }

@@ -9,6 +9,7 @@ import '../../features/auth/presentation/login_page.dart';
 import '../../features/backup/presentation/backup_page.dart';
 import '../../features/folders/presentation/folders_page.dart';
 import '../../features/library/presentation/library_page.dart';
+import '../../features/memories/presentation/memories_page.dart';
 import '../../features/search/presentation/search_page.dart';
 import '../../features/search/presentation/global_map_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
@@ -75,6 +76,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/backup', builder: (_, _) => const BackupPage()),
       GoRoute(path: '/folders', builder: (_, _) => const FoldersPage()),
       GoRoute(path: '/map', builder: (_, _) => const GlobalMapPage()),
+      GoRoute(path: '/memories', builder: (_, _) => const MemoriesPage()),
       GoRoute(
         path: '/folders/detail',
         builder: (_, state) => FolderDetailPage(path: state.extra! as String),
