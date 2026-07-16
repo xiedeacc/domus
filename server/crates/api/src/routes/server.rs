@@ -27,7 +27,7 @@ pub fn router() -> Router<AppState> {
         .route("/server/storage", get(storage))
         .route("/server/theme", get(theme))
         .route("/server/version", get(version))
-        .route("/server/version-check", get(super::not_implemented))
+        .route("/server/version-check", get(version_check))
         .route("/server/version-history", get(version_history))
 }
 
@@ -37,6 +37,10 @@ async fn ping() -> Json<serde_json::Value> {
 
 async fn version(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(state.services.server.version())
+}
+
+async fn version_check(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(version_check_value(&state))
 }
 
 async fn version_history() -> Json<serde_json::Value> {
@@ -89,6 +93,17 @@ fn media_types_value() -> serde_json::Value {
         "image": [".arw", ".avif", ".bmp", ".cr2", ".cr3", ".dng", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".nef", ".orf", ".pef", ".png", ".raf", ".raw", ".rw2", ".srw", ".tiff", ".webp"],
         "video": [".3gp", ".avi", ".flv", ".m2ts", ".mkv", ".mov", ".mp4", ".mpg", ".mts", ".webm", ".wmv"],
         "sidecar": [".xmp"],
+    })
+}
+
+pub(crate) fn version_check_value(state: &AppState) -> serde_json::Value {
+    let about = state.services.server.version();
+    let major = about["major"].as_u64().unwrap_or(3);
+    let minor = about["minor"].as_u64().unwrap_or(0);
+    let patch = about["patch"].as_u64().unwrap_or(3);
+    serde_json::json!({
+        "checkedAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        "releaseVersion": format!("v{major}.{minor}.{patch}"),
     })
 }
 

@@ -9,7 +9,7 @@ use domus_db::Repositories;
 use serde_json::json;
 
 /// Immich release whose API surface this build implements.
-pub const COMPAT_VERSION: (u32, u32, u32) = (3, 0, 2);
+pub const COMPAT_VERSION: (u32, u32, u32) = (3, 0, 3);
 
 pub struct ServerService {
     #[allow(dead_code)]
@@ -102,7 +102,7 @@ mod tests {
     fn version_matches_immich_version_shape() {
         assert_eq!(
             ServerService::version_value(),
-            json!({ "major": 3, "minor": 0, "patch": 2, "prerelease": null })
+            json!({ "major": 3, "minor": 0, "patch": 3, "prerelease": null })
         );
     }
 
