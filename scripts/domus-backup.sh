@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Mirror a Domus deployment's bin/, conf/, and data/ directories into a
-# separate Git worktree and push it to a private backup repository.
+# Mirror a Domus deployment's bin/, conf/, and recoverable data state into a
+# separate Git worktree and push it to a private backup repository. Large media
+# trees are intentionally excluded; they should be backed by storage snapshots.
 set -euo pipefail
 
 BACKUP_REPO_URL="${DOMUS_BACKUP_REPO_URL:-git@github.com:xiedeacc/domus_data.git}"
@@ -61,7 +62,10 @@ sync_source() {
     mkdir -p "$work_dir/bin" "$work_dir/conf" "$work_dir/data"
 
     if [ -d "$install_dir/bin" ]; then
-        rsync -a --delete "$install_dir/bin/" "$work_dir/bin/"
+        rsync -a --delete \
+            --exclude '*.bak-*' \
+            --exclude '*.bak' \
+            "$install_dir/bin/" "$work_dir/bin/"
     fi
     if [ -d "$install_dir/conf" ]; then
         rsync -a --delete "$install_dir/conf/" "$work_dir/conf/"
@@ -69,11 +73,18 @@ sync_source() {
     if [ -d "$install_dir/data" ]; then
         rsync -a --delete \
             --exclude '/.backup.lock' \
+            --exclude '/.domus.sqlite3.*.tmp*' \
             --exclude '/domus.sqlite3' \
             --exclude '/domus.sqlite3.bak' \
             --exclude '/domus.sqlite3-shm' \
             --exclude '/domus.sqlite3-wal' \
             --exclude '/backups/' \
+            --exclude '/upload/' \
+            --exclude '/library/' \
+            --exclude '/thumbs/' \
+            --exclude '/thumbs*/' \
+            --exclude '/encoded-video/' \
+            --exclude '/profile/' \
             "$install_dir/data/" "$work_dir/data/"
     fi
 }
