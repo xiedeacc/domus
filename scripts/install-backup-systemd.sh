@@ -17,10 +17,17 @@ log() {
 
 install_layout() {
     mkdir -p "$DEST_DIR"/{bin,conf,data,logs,.backup-worktree}
+    install -d -m 0700 "$DEST_DIR/.ssh"
     install -m 0755 "$repo_root/scripts/domus-backup.sh" "$DEST_DIR/bin/domus-backup"
+    if command -v ssh-keyscan >/dev/null 2>&1; then
+        touch "$DEST_DIR/.ssh/known_hosts"
+        ssh-keyscan github.com 2>/dev/null >>"$DEST_DIR/.ssh/known_hosts" || true
+        sort -u "$DEST_DIR/.ssh/known_hosts" -o "$DEST_DIR/.ssh/known_hosts"
+        chmod 0600 "$DEST_DIR/.ssh/known_hosts"
+    fi
     if [ "$RUN_USER" != "root" ]; then
         id -u "$RUN_USER" >/dev/null 2>&1 || useradd --system --home "$DEST_DIR" --shell /usr/sbin/nologin "$RUN_USER"
-        chown -R "$RUN_USER":"$RUN_USER" "$DEST_DIR/data" "$DEST_DIR/logs" "$DEST_DIR/conf" "$DEST_DIR/.backup-worktree"
+        chown -R "$RUN_USER":"$RUN_USER" "$DEST_DIR/data" "$DEST_DIR/logs" "$DEST_DIR/conf" "$DEST_DIR/.backup-worktree" "$DEST_DIR/.ssh"
     fi
 }
 
@@ -41,6 +48,7 @@ Environment=DOMUS_BACKUP_ROOT=${DEST_DIR}
 Environment=DOMUS_BACKUP_WORK_DIR=${DEST_DIR}/.backup-worktree
 Environment=DOMUS_BACKUP_DB=${DEST_DIR}/data/domus.sqlite3
 Environment=HOME=${DEST_DIR}
+Environment=GIT_SSH_COMMAND=ssh -o IdentitiesOnly=yes -o UserKnownHostsFile=${DEST_DIR}/.ssh/known_hosts -o StrictHostKeyChecking=yes
 ExecStart=${DEST_DIR}/bin/domus-backup
 NoNewPrivileges=true
 ProtectSystem=strict
