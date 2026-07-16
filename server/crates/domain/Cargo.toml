@@ -9,6 +9,7 @@ domus-common = { workspace = true }
 domus-db = { workspace = true }
 domus-jobs = { workspace = true }
 domus-media = { workspace = true }
+domus-ml = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }

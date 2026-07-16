@@ -265,6 +265,77 @@ CREATE TABLE "notification" (
     "createdAt"   timestamptz NOT NULL DEFAULT now()
 );
 
+-- === machine learning =====================================================
+
+CREATE TABLE "smart_search" (
+    "assetId"   uuid PRIMARY KEY REFERENCES "asset" ("id") ON DELETE CASCADE,
+    "embedding" text NOT NULL
+);
+
+CREATE TABLE "person" (
+    "id"            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "createdAt"     timestamptz NOT NULL DEFAULT now(),
+    "updatedAt"     timestamptz NOT NULL DEFAULT now(),
+    "ownerId"       uuid NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+    "name"          varchar NOT NULL DEFAULT '',
+    "thumbnailPath" varchar NOT NULL DEFAULT '',
+    "isHidden"      boolean NOT NULL DEFAULT false,
+    "birthDate"     date,
+    "faceAssetId"   uuid,
+    "isFavorite"    boolean NOT NULL DEFAULT false,
+    "color"         varchar,
+    "updateId"      uuid NOT NULL DEFAULT uuid_generate_v4()
+);
+CREATE INDEX "IDX_person_owner" ON "person" ("ownerId");
+
+CREATE TABLE "asset_face" (
+    "id"            uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "assetId"       uuid NOT NULL REFERENCES "asset" ("id") ON DELETE CASCADE,
+    "personId"      uuid REFERENCES "person" ("id") ON DELETE SET NULL,
+    "imageWidth"    integer NOT NULL DEFAULT 0,
+    "imageHeight"   integer NOT NULL DEFAULT 0,
+    "boundingBoxX1" integer NOT NULL DEFAULT 0,
+    "boundingBoxY1" integer NOT NULL DEFAULT 0,
+    "boundingBoxX2" integer NOT NULL DEFAULT 0,
+    "boundingBoxY2" integer NOT NULL DEFAULT 0,
+    "sourceType"    varchar NOT NULL DEFAULT 'machine-learning',
+    "deletedAt"     timestamptz,
+    "updatedAt"     timestamptz NOT NULL DEFAULT now(),
+    "updateId"      uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "isVisible"     boolean NOT NULL DEFAULT true
+);
+CREATE INDEX "asset_face_assetId_personId_idx" ON "asset_face" ("assetId", "personId");
+CREATE INDEX "asset_face_personId_assetId_idx" ON "asset_face" ("personId", "assetId");
+
+CREATE TABLE "face_search" (
+    "faceId"    uuid PRIMARY KEY REFERENCES "asset_face" ("id") ON DELETE CASCADE,
+    "embedding" text NOT NULL
+);
+
+CREATE TABLE "asset_ocr" (
+    "id"        uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "assetId"   uuid NOT NULL REFERENCES "asset" ("id") ON DELETE CASCADE,
+    "x1"        real NOT NULL,
+    "y1"        real NOT NULL,
+    "x2"        real NOT NULL,
+    "y2"        real NOT NULL,
+    "x3"        real NOT NULL,
+    "y3"        real NOT NULL,
+    "x4"        real NOT NULL,
+    "y4"        real NOT NULL,
+    "boxScore"  real NOT NULL,
+    "textScore" real NOT NULL,
+    "text"      text NOT NULL,
+    "isVisible" boolean NOT NULL DEFAULT true,
+    "updateId"  uuid NOT NULL DEFAULT uuid_generate_v4()
+);
+CREATE INDEX "IDX_asset_ocr_assetId" ON "asset_ocr" ("assetId");
+
+CREATE TABLE "ocr_search" (
+    "assetId" uuid PRIMARY KEY REFERENCES "asset" ("id") ON DELETE CASCADE,
+    "text"    text NOT NULL
+);
+
 -- === sync & system ========================================================
 
 CREATE TABLE "session_sync_checkpoint" (

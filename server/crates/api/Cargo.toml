@@ -28,3 +28,4 @@ base64 = { workspace = true }
 mime_guess = { workspace = true }
 reqwest = { workspace = true }
 libc = { workspace = true }
+sqlx = { workspace = true }

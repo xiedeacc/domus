@@ -1,4 +1,4 @@
-//! Metadata search (SQL filters). Smart/CLIP search is intentionally unsupported (no ML service) and reports as disabled in server features.
+//! Metadata and smart search services.
 
 use domus_common::{Error, Result};
 use domus_db::Repositories;
@@ -29,6 +29,34 @@ impl SearchService {
 
     pub async fn explore(&self, user_id: Uuid) -> Result<serde_json::Value> {
         self.repos.search.explore(user_id).await
+    }
+
+    pub async fn search_smart(
+        &self,
+        user_id: Uuid,
+        filters: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        validate_metadata_filters(&filters)?;
+        let query = filters
+            .get("query")
+            .or_else(|| filters.get("text"))
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        if query.trim().is_empty() {
+            return self.search_metadata(user_id, filters).await;
+        }
+        let embedding = domus_ml::text_embedding_vector(query, "ViT-B-32__openai")
+            .map_err(|err| Error::BadRequest(err.to_string()))?;
+        let smart = self.repos.search.search_smart(user_id, &embedding).await?;
+        if smart
+            .pointer("/assets/total")
+            .and_then(|value| value.as_u64())
+            .unwrap_or_default()
+            == 0
+        {
+            return self.search_metadata(user_id, filters).await;
+        }
+        Ok(smart)
     }
 }
 

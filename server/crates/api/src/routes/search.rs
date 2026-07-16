@@ -1,4 +1,4 @@
-//! Immich-compatible routes: metadata/people/places search; smart search 501s without ML.
+//! Immich-compatible routes: metadata/smart/people/places search.
 
 use crate::error::ApiResult;
 use crate::extractors::Auth;
@@ -19,7 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/search/person", get(super::not_implemented))
         .route("/search/places", get(places))
         .route("/search/random", post(random))
-        .route("/search/smart", post(super::not_implemented))
+        .route("/search/smart", post(smart))
         .route("/search/statistics", post(super::not_implemented))
         .route("/search/suggestions", get(suggestions))
 }
@@ -49,6 +49,25 @@ async fn random(
             .services
             .search
             .search_metadata(ctx.user_id, serde_json::json!({}))
+            .await?,
+    ))
+}
+
+async fn smart(
+    State(state): State<AppState>,
+    Auth(ctx): Auth,
+    Json(filters): Json<serde_json::Value>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let query = filters
+        .get("query")
+        .or_else(|| filters.get("text"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::String(String::new()));
+    Ok(Json(
+        state
+            .services
+            .search
+            .search_smart(ctx.user_id, serde_json::json!({ "query": query }))
             .await?,
     ))
 }

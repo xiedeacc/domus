@@ -30,6 +30,7 @@ pub async fn handle(ctx: &JobContext, job: JobData) -> Result<()> {
         JobName::GenerateThumbnail => generate_thumbnail(ctx, &job).await,
         JobName::GenerateThumbhash => generate_thumbhash(ctx, &job).await,
         JobName::VideoConversion => video_conversion(ctx, &job).await,
+        JobName::SmartSearch => smart_search(ctx, &job).await,
         JobName::AssetDeletion => asset_deletion(ctx, &job).await,
         _ => Err(Error::NotImplemented("job handler")),
     }
@@ -105,6 +106,9 @@ async fn metadata_extraction(ctx: &JobContext, job: &JobData) -> Result<()> {
             )
             .await?;
     }
+    ctx.queue
+        .enqueue(JobName::SmartSearch, serde_json::json!({ "id": asset_id }))
+        .await?;
     Ok(())
 }
 
@@ -173,6 +177,20 @@ async fn video_conversion(ctx: &JobContext, job: &JobData) -> Result<()> {
         .upsert_asset_file(asset.id, "encoded-video", &output.to_string_lossy())
         .await?;
     Ok(())
+}
+
+async fn smart_search(ctx: &JobContext, job: &JobData) -> Result<()> {
+    let asset = ctx.repos.asset.get(job_asset_id(job)?).await?;
+    if asset.asset_type != AssetType::Image {
+        return Ok(());
+    }
+    let bytes = tokio::fs::read(&asset.original_path).await?;
+    let embedding = domus_ml::image_embedding(&bytes, "ViT-B-32__openai")
+        .map_err(|e| Error::BadRequest(e.to_string()))?;
+    ctx.repos
+        .search
+        .upsert_smart_embedding(asset.id, &embedding)
+        .await
 }
 
 /// Permanently remove a trashed asset: delete files, exif, then the row.

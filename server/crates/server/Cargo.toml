@@ -15,6 +15,7 @@ domus-domain = { workspace = true }
 domus-api = { workspace = true }
 domus-jobs = { workspace = true }
 domus-media = { workspace = true }
+domus-ml = { workspace = true }
 tokio = { workspace = true }
 axum = { workspace = true }
 serde_json = { workspace = true }

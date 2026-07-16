@@ -36,11 +36,11 @@ impl ServerService {
 
     pub fn features_value() -> serde_json::Value {
         json!({
-            "smartSearch": false,          // no ML service
-            "facialRecognition": false,    // no ML service
-            "duplicateDetection": false,   // requires embeddings
-            "ocr": false,                  // no ML service
-            "importFaces": false,
+            "smartSearch": true,
+            "facialRecognition": true,
+            "duplicateDetection": true,
+            "ocr": true,
+            "importFaces": true,
             "map": true,
             "reverseGeocoding": true,
             "sidecar": true,
@@ -107,12 +107,12 @@ mod tests {
     }
 
     #[test]
-    fn features_disable_ml_related_capabilities() {
+    fn features_enable_rust_ml_related_capabilities() {
         let features = ServerService::features_value();
-        assert_eq!(features["smartSearch"], false);
-        assert_eq!(features["duplicateDetection"], false);
-        assert_eq!(features["facialRecognition"], false);
-        assert_eq!(features["ocr"], false);
+        assert_eq!(features["smartSearch"], true);
+        assert_eq!(features["duplicateDetection"], true);
+        assert_eq!(features["facialRecognition"], true);
+        assert_eq!(features["ocr"], true);
         assert_eq!(features["passwordLogin"], true);
         assert_eq!(features["map"], true);
     }

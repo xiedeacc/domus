@@ -14,6 +14,9 @@ pub struct Config {
     /// HTTP listen port (Immich default: 2283).
     #[serde(default = "default_port")]
     pub port: u16,
+    /// Machine-learning service listen port (Immich ML default: 3003).
+    #[serde(default = "default_ml_port")]
+    pub ml_port: u16,
     /// Root of the media directory (Immich mounts this at /data).
     #[serde(default = "default_media_location")]
     pub media_location: String,
@@ -47,6 +50,8 @@ pub struct WorkerConfig {
     pub api: bool,
     #[serde(default = "default_true")]
     pub microservices: bool,
+    #[serde(default = "default_true")]
+    pub ml: bool,
 }
 
 impl Default for WorkerConfig {
@@ -54,6 +59,7 @@ impl Default for WorkerConfig {
         Self {
             api: true,
             microservices: true,
+            ml: true,
         }
     }
 }
@@ -76,6 +82,11 @@ impl Config {
         if let Ok(v) = std::env::var("IMMICH_PORT") {
             if let Ok(port) = v.parse() {
                 self.port = port;
+            }
+        }
+        if let Ok(v) = std::env::var("IMMICH_MACHINE_LEARNING_PORT") {
+            if let Ok(port) = v.parse() {
+                self.ml_port = port;
             }
         }
         if let Ok(v) = std::env::var("PORT") {
@@ -107,6 +118,9 @@ fn default_host() -> String {
 fn default_port() -> u16 {
     2283
 }
+fn default_ml_port() -> u16 {
+    3003
+}
 fn default_media_location() -> String {
     "/data".into()
 }
@@ -125,6 +139,7 @@ impl Default for Config {
         Self {
             host: default_host(),
             port: default_port(),
+            ml_port: default_ml_port(),
             media_location: default_media_location(),
             original_media_location: None,
             database: DatabaseConfig {

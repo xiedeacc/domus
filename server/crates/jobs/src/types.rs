@@ -30,9 +30,20 @@ pub enum QueueName {
     BackupDatabase,
     #[serde(rename = "duplicateDetection")]
     DuplicateDetection,
-    // ML-backed queues (smartSearch, faceDetection, facialRecognition, ocr)
-    // are intentionally absent: Domus does not ship the ML service. Their
-    // admin-API entries report as disabled.
+    #[serde(rename = "smartSearch")]
+    SmartSearch,
+    #[serde(rename = "faceDetection")]
+    FaceDetection,
+    #[serde(rename = "facialRecognition")]
+    FacialRecognition,
+    #[serde(rename = "ocr")]
+    Ocr,
+    #[serde(rename = "workflow")]
+    Workflow,
+    #[serde(rename = "integrityCheck")]
+    IntegrityCheck,
+    #[serde(rename = "editor")]
+    Editor,
 }
 
 impl QueueName {
@@ -51,7 +62,38 @@ impl QueueName {
             Notifications,
             BackupDatabase,
             DuplicateDetection,
+            SmartSearch,
+            FaceDetection,
+            FacialRecognition,
+            Ocr,
+            Workflow,
+            IntegrityCheck,
+            Editor,
         ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            QueueName::BackgroundTask => "backgroundTask",
+            QueueName::MetadataExtraction => "metadataExtraction",
+            QueueName::ThumbnailGeneration => "thumbnailGeneration",
+            QueueName::VideoConversion => "videoConversion",
+            QueueName::StorageTemplateMigration => "storageTemplateMigration",
+            QueueName::Migration => "migration",
+            QueueName::Search => "search",
+            QueueName::Sidecar => "sidecar",
+            QueueName::Library => "library",
+            QueueName::Notifications => "notifications",
+            QueueName::BackupDatabase => "backupDatabase",
+            QueueName::DuplicateDetection => "duplicateDetection",
+            QueueName::SmartSearch => "smartSearch",
+            QueueName::FaceDetection => "faceDetection",
+            QueueName::FacialRecognition => "facialRecognition",
+            QueueName::Ocr => "ocr",
+            QueueName::Workflow => "workflow",
+            QueueName::IntegrityCheck => "integrityCheck",
+            QueueName::Editor => "editor",
+        }
     }
 
     /// Default worker concurrency, mirroring Immich's job settings.
@@ -61,6 +103,11 @@ impl QueueName {
             QueueName::ThumbnailGeneration => 3,
             QueueName::VideoConversion => 1,
             QueueName::StorageTemplateMigration => 5,
+            QueueName::FacialRecognition
+            | QueueName::DuplicateDetection
+            | QueueName::FaceDetection
+            | QueueName::SmartSearch
+            | QueueName::Ocr => 1,
             _ => 2,
         }
     }
@@ -107,6 +154,22 @@ pub enum JobName {
     MemoriesCreate,
     #[serde(rename = "DuplicateDetection")]
     DuplicateDetection,
+    #[serde(rename = "SmartSearch")]
+    SmartSearch,
+    #[serde(rename = "SmartSearchQueueAll")]
+    SmartSearchQueueAll,
+    #[serde(rename = "FaceDetection")]
+    FaceDetection,
+    #[serde(rename = "FaceDetectionQueueAll")]
+    FaceDetectionQueueAll,
+    #[serde(rename = "FacialRecognition")]
+    FacialRecognition,
+    #[serde(rename = "FacialRecognitionQueueAll")]
+    FacialRecognitionQueueAll,
+    #[serde(rename = "Ocr")]
+    Ocr,
+    #[serde(rename = "OcrQueueAll")]
+    OcrQueueAll,
     #[serde(rename = "SendMail")]
     SendMail,
     #[serde(rename = "DatabaseBackup")]
@@ -126,6 +189,10 @@ impl JobName {
             StorageTemplateMigration => QueueName::StorageTemplateMigration,
             LibraryScan | LibrarySyncFiles => QueueName::Library,
             DuplicateDetection => QueueName::DuplicateDetection,
+            SmartSearch | SmartSearchQueueAll => QueueName::SmartSearch,
+            FaceDetection | FaceDetectionQueueAll => QueueName::FaceDetection,
+            FacialRecognition | FacialRecognitionQueueAll => QueueName::FacialRecognition,
+            Ocr | OcrQueueAll => QueueName::Ocr,
             SendMail => QueueName::Notifications,
             DatabaseBackup => QueueName::BackupDatabase,
             _ => QueueName::BackgroundTask,

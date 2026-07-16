@@ -8,6 +8,7 @@ license.workspace = true
 domus-common = { workspace = true }
 domus-db = { workspace = true }
 domus-media = { workspace = true }
+domus-ml = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }

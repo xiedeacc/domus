@@ -84,6 +84,58 @@ impl SearchRepository {
         Ok(serde_json::json!({ "assets": { "items": items, "total": items.len() } }))
     }
 
+    pub async fn search_smart(
+        &self,
+        user_id: Uuid,
+        query_embedding: &[f32],
+    ) -> Result<serde_json::Value> {
+        let rows = sqlx::query(
+            r#"SELECT a.id, a."ownerId", a.type, a."originalFileName", a."localDateTime",
+                      a."fileCreatedAt", a."isFavorite", a."deletedAt", a.visibility,
+                      a.thumbhash, e."exifImageWidth", e."exifImageHeight", s.embedding
+               FROM smart_search s
+               JOIN asset a ON a.id = s."assetId"
+               LEFT JOIN asset_exif e ON e."assetId" = a.id
+               WHERE a."ownerId" = $1 AND a."deletedAt" IS NULL
+               LIMIT 1000"#,
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?;
+
+        let mut scored = rows
+            .iter()
+            .filter_map(|row| {
+                let embedding = row.try_get::<String, _>("embedding").ok()?;
+                let embedding = decode_embedding(&embedding)?;
+                let score = cosine_similarity(query_embedding, &embedding)?;
+                Some((score, asset_json(row)))
+            })
+            .collect::<Vec<_>>();
+        scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let items = scored
+            .into_iter()
+            .take(250)
+            .map(|(_, asset)| asset)
+            .collect::<Vec<_>>();
+        Ok(serde_json::json!({ "assets": { "items": items, "total": items.len() } }))
+    }
+
+    pub async fn upsert_smart_embedding(&self, asset_id: Uuid, embedding: &str) -> Result<()> {
+        sqlx::query(
+            r#"INSERT INTO smart_search ("assetId", embedding)
+               VALUES ($1, $2)
+               ON CONFLICT ("assetId") DO UPDATE SET embedding = excluded.embedding"#,
+        )
+        .bind(asset_id)
+        .bind(embedding)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
     pub async fn suggestions(&self, user_id: Uuid, kind: &str) -> Result<Vec<String>> {
         let column = match kind {
             "city" | "cities" => "city",
@@ -112,6 +164,56 @@ impl SearchRepository {
         let cities = self.suggestions(user_id, "city").await?;
         Ok(serde_json::json!({ "fieldName": "city", "items": cities }))
     }
+}
+
+fn asset_json(row: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
+    let thumbhash: Option<Vec<u8>> = row.try_get("thumbhash").ok();
+    serde_json::json!({
+        "id": row.try_get::<Uuid, _>("id").ok(),
+        "ownerId": row.try_get::<Uuid, _>("ownerId").ok(),
+        "type": row.try_get::<String, _>("type").unwrap_or_default(),
+        "originalFileName": row.try_get::<String, _>("originalFileName").unwrap_or_default(),
+        "localDateTime": row.try_get::<String, _>("localDateTime").unwrap_or_default(),
+        "fileCreatedAt": row.try_get::<String, _>("fileCreatedAt").unwrap_or_default(),
+        "isFavorite": row.try_get::<bool, _>("isFavorite").unwrap_or(false),
+        "isTrashed": row.try_get::<Option<String>, _>("deletedAt").ok().flatten().is_some(),
+        "isArchived": row.try_get::<String, _>("visibility").unwrap_or_default() == "archive",
+        "visibility": row.try_get::<String, _>("visibility").unwrap_or_default(),
+        "thumbhash": thumbhash.map(|bytes| base64::engine::general_purpose::STANDARD.encode(bytes)),
+        "width": row.try_get::<Option<i32>, _>("exifImageWidth").ok().flatten(),
+        "height": row.try_get::<Option<i32>, _>("exifImageHeight").ok().flatten(),
+    })
+}
+
+fn decode_embedding(value: &str) -> Option<Vec<f32>> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(value)
+        .ok()?;
+    if bytes.len() % 4 != 0 {
+        return None;
+    }
+    Some(
+        bytes
+            .chunks_exact(4)
+            .map(|chunk| f32::from_le_bytes(chunk.try_into().expect("chunk size")))
+            .collect(),
+    )
+}
+
+fn cosine_similarity(left: &[f32], right: &[f32]) -> Option<f32> {
+    if left.len() != right.len() || left.is_empty() {
+        return None;
+    }
+    let mut dot = 0.0;
+    let mut left_norm = 0.0;
+    let mut right_norm = 0.0;
+    for (a, b) in left.iter().zip(right) {
+        dot += a * b;
+        left_norm += a * a;
+        right_norm += b * b;
+    }
+    let denom = left_norm.sqrt() * right_norm.sqrt();
+    (denom > 0.0).then_some(dot / denom)
 }
 
 fn db_err(e: sqlx::Error) -> domus_common::Error {

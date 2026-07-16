@@ -82,8 +82,7 @@ fn trim_allocator_after_large_sync(envelope_count: usize) {
     let trimmed = unsafe { libc::malloc_trim(0) };
     debug!(
         envelope_count,
-        trimmed,
-        "trimmed allocator after large sync stream"
+        trimmed, "trimmed allocator after large sync stream"
     );
 }
 

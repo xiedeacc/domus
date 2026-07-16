@@ -111,6 +111,81 @@ async fn ensure_runtime_tables(pool: &PgPool) -> Result<()> {
     .execute(pool)
     .await
     .map_err(|e| Error::Database(e.to_string()))?;
+    ensure_ml_tables(pool).await?;
+    Ok(())
+}
+
+async fn ensure_ml_tables(pool: &PgPool) -> Result<()> {
+    for sql in [
+        r#"CREATE TABLE IF NOT EXISTS "smart_search" (
+            "assetId" blob PRIMARY KEY,
+            "embedding" text NOT NULL
+        )"#,
+        r#"CREATE TABLE IF NOT EXISTS "person" (
+            "id" blob PRIMARY KEY,
+            "createdAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "ownerId" blob NOT NULL,
+            "name" text NOT NULL DEFAULT '',
+            "thumbnailPath" text NOT NULL DEFAULT '',
+            "isHidden" integer NOT NULL DEFAULT 0,
+            "birthDate" text,
+            "faceAssetId" blob,
+            "isFavorite" integer NOT NULL DEFAULT 0,
+            "color" text,
+            "updateId" blob NOT NULL
+        )"#,
+        r#"CREATE INDEX IF NOT EXISTS "IDX_person_owner" ON "person" ("ownerId")"#,
+        r#"CREATE TABLE IF NOT EXISTS "asset_face" (
+            "id" blob PRIMARY KEY,
+            "assetId" blob NOT NULL,
+            "personId" blob,
+            "imageWidth" integer NOT NULL DEFAULT 0,
+            "imageHeight" integer NOT NULL DEFAULT 0,
+            "boundingBoxX1" integer NOT NULL DEFAULT 0,
+            "boundingBoxY1" integer NOT NULL DEFAULT 0,
+            "boundingBoxX2" integer NOT NULL DEFAULT 0,
+            "boundingBoxY2" integer NOT NULL DEFAULT 0,
+            "sourceType" text NOT NULL DEFAULT 'machine-learning',
+            "deletedAt" text,
+            "updatedAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updateId" blob NOT NULL,
+            "isVisible" integer NOT NULL DEFAULT 1
+        )"#,
+        r#"CREATE INDEX IF NOT EXISTS "asset_face_assetId_personId_idx" ON "asset_face" ("assetId", "personId")"#,
+        r#"CREATE INDEX IF NOT EXISTS "asset_face_personId_assetId_idx" ON "asset_face" ("personId", "assetId")"#,
+        r#"CREATE TABLE IF NOT EXISTS "face_search" (
+            "faceId" blob PRIMARY KEY,
+            "embedding" text NOT NULL
+        )"#,
+        r#"CREATE TABLE IF NOT EXISTS "asset_ocr" (
+            "id" blob PRIMARY KEY,
+            "assetId" blob NOT NULL,
+            "x1" real NOT NULL,
+            "y1" real NOT NULL,
+            "x2" real NOT NULL,
+            "y2" real NOT NULL,
+            "x3" real NOT NULL,
+            "y3" real NOT NULL,
+            "x4" real NOT NULL,
+            "y4" real NOT NULL,
+            "boxScore" real NOT NULL,
+            "textScore" real NOT NULL,
+            "text" text NOT NULL,
+            "isVisible" integer NOT NULL DEFAULT 1,
+            "updateId" blob NOT NULL
+        )"#,
+        r#"CREATE INDEX IF NOT EXISTS "IDX_asset_ocr_assetId" ON "asset_ocr" ("assetId")"#,
+        r#"CREATE TABLE IF NOT EXISTS "ocr_search" (
+            "assetId" blob PRIMARY KEY,
+            "text" text NOT NULL
+        )"#,
+    ] {
+        sqlx::query(sql)
+            .execute(pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+    }
     Ok(())
 }
 

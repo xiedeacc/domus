@@ -1,8 +1,9 @@
 //! Domus server entry point.
 //!
-//! One binary hosts both worker groups, like Immich's single container:
+//! One binary hosts all Domus worker groups:
 //!   - api:            REST + socket.io + static web serving
 //!   - microservices:  background job workers
+//!   - ml:             Immich-compatible machine-learning HTTP service
 //! IMMICH_WORKERS_INCLUDE / DOMUS_WORKERS__* select which groups run, so the
 //! deployment can be split into separate processes later without a rebuild.
 
@@ -24,7 +25,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::load()?;
-    info!(port = config.port, media = %config.media_location, "starting domus-server");
+    info!(
+        port = config.port,
+        ml_port = config.ml_port,
+        media = %config.media_location,
+        "starting domus-server"
+    );
 
     let pool = domus_db::connect(&config).await?;
     let repos = domus_db::Repositories::new(pool.clone());
@@ -41,6 +47,12 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(WorkerPool::new(queue.clone(), context)).start();
     }
 
+    let ml_task = if config.workers.ml {
+        Some(spawn_ml_server(config.host.clone(), config.ml_port).await?)
+    } else {
+        None
+    };
+
     if config.workers.api {
         let services = Services::new(repos, queue, storage);
         let state = AppState::new(config.clone(), services);
@@ -52,13 +64,28 @@ async fn main() -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         info!("listening on http://{addr}");
         axum::serve(listener, app).await?;
+    } else if let Some(task) = ml_task {
+        task.await??;
     } else {
         // Worker-only process: park the main task.
-        info!("running in microservices-only mode");
+        info!("running without foreground HTTP listeners");
         futures_park().await;
     }
 
     Ok(())
+}
+
+async fn spawn_ml_server(
+    host: String,
+    port: u16,
+) -> anyhow::Result<tokio::task::JoinHandle<anyhow::Result<()>>> {
+    let addr = format!("{host}:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    info!("listening on Immich ML compatible endpoint http://{addr}");
+    Ok(tokio::spawn(async move {
+        axum::serve(listener, domus_ml::router::<()>()).await?;
+        Ok(())
+    }))
 }
 
 async fn futures_park() {

@@ -31,7 +31,8 @@ impl JobAdminService {
                     .to_string(),
                 serde_json::json!({
                     "jobCounts": counts,
-                    "queueStatus": { "isActive": false, "isPaused": false },
+                    "queueStatus": { "isActive": true, "isPaused": false },
+                    "concurrency": q.default_concurrency(),
                 }),
             );
         }
