@@ -17,6 +17,13 @@ class DomusApp extends ConsumerWidget {
       themeMode: ThemeMode.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(textScaler: TextScaler.noScaling),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

@@ -10,7 +10,10 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use domus_domain::services::sync::SyncRequestType;
+use futures::stream;
 use serde::Deserialize;
+use std::convert::Infallible;
+use tracing::debug;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -47,17 +50,45 @@ async fn sync_stream(
         .sync
         .stream(session_id, ctx.user_id, &dto.types, dto.reset)
         .await?;
-    let mut body = String::new();
-    for envelope in &envelopes {
-        body.push_str(&serde_json::to_string(envelope).unwrap());
-        body.push('\n');
-    }
+    let envelope_count = envelopes.len();
+    let body = stream::unfold(envelopes.into_iter(), move |mut envelopes| async move {
+        match envelopes.next() {
+            Some(envelope) => {
+                let mut line = serde_json::to_string(&envelope).unwrap();
+                line.push('\n');
+                Some((Ok::<_, Infallible>(line), envelopes))
+            }
+            None => {
+                trim_allocator_after_large_sync(envelope_count);
+                None
+            }
+        }
+    });
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/jsonlines+json")
-        .body(Body::from(body))
+        .body(Body::from_stream(body))
         .unwrap())
 }
+
+#[cfg(target_env = "gnu")]
+fn trim_allocator_after_large_sync(envelope_count: usize) {
+    const LARGE_ENVELOPE_COUNT: usize = 10_000;
+
+    if envelope_count < LARGE_ENVELOPE_COUNT {
+        return;
+    }
+
+    let trimmed = unsafe { libc::malloc_trim(0) };
+    debug!(
+        envelope_count,
+        trimmed,
+        "trimmed allocator after large sync stream"
+    );
+}
+
+#[cfg(not(target_env = "gnu"))]
+fn trim_allocator_after_large_sync(_envelope_count: usize) {}
 
 async fn get_acks(
     State(state): State<AppState>,

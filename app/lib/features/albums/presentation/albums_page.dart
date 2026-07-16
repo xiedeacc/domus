@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../shared/immich_style.dart';
 import '../../../models/album.dart';
 import '../data/album_repository.dart';
 
@@ -47,85 +48,90 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   Widget build(BuildContext context) {
     final albums = ref.watch(albumsProvider);
-    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('相簿'),
-        actions: [
-          IconButton(
-            tooltip: '刷新',
-            icon: const Icon(Icons.sync),
-            onPressed: () => ref.invalidate(albumsProvider),
-          ),
-          IconButton(
-            tooltip: '新建相簿',
-            icon: const Icon(Icons.add),
-            onPressed: () => _showCreateAlbumDialog(context, ref),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: SearchBar(
-              controller: _controller,
-              hintText: '搜索相簿',
-              leading: const Icon(Icons.search),
-              elevation: const WidgetStatePropertyAll(0),
-              backgroundColor: WidgetStatePropertyAll(
-                colors.surfaceContainerHighest,
-              ),
-              constraints: const BoxConstraints(minHeight: 52),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<_AlbumFilter>(
-              showSelectedIcon: false,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle: WidgetStatePropertyAll(
-                  Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            ImmichLogoHeader(
+              actions: [
+                ImmichRoundedIconButton(
+                  tooltip: '刷新',
+                  icon: Icons.sync,
+                  onPressed: () => ref.invalidate(albumsProvider),
                 ),
-              ),
-              segments: const [
-                ButtonSegment(value: _AlbumFilter.all, label: Text('全部')),
-                ButtonSegment(value: _AlbumFilter.shared, label: Text('共享')),
-                ButtonSegment(value: _AlbumFilter.mine, label: Text('我的')),
+                ImmichRoundedIconButton(
+                  tooltip: '新建相簿',
+                  icon: Icons.add,
+                  filled: true,
+                  onPressed: () => _showCreateAlbumDialog(context, ref),
+                ),
               ],
-              selected: {_filter},
-              onSelectionChanged: (value) =>
-                  setState(() => _filter = value.first),
             ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: albums.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text('相簿加载失败：$error')),
-              data: (albums) {
-                final filtered = _filterAlbums(albums);
-                if (filtered.isEmpty) {
-                  return const Center(child: Text('暂无相簿'));
-                }
-                return RefreshIndicator(
-                  onRefresh: () async => ref.invalidate(albumsProvider),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) =>
-                        _AlbumTile(album: filtered[index]),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+              child: ImmichSearchField(
+                controller: _controller,
+                hintText: '搜索相簿',
+                onClear: _controller.clear,
+              ),
+            ),
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  ImmichFilterChip(
+                    label: 'All',
+                    selected: _filter == _AlbumFilter.all,
+                    onTap: () => setState(() => _filter = _AlbumFilter.all),
                   ),
-                );
-              },
+                  const SizedBox(width: 10),
+                  ImmichFilterChip(
+                    label: 'Shared with me',
+                    selected: _filter == _AlbumFilter.shared,
+                    onTap: () => setState(() => _filter = _AlbumFilter.shared),
+                  ),
+                  const SizedBox(width: 10),
+                  ImmichFilterChip(
+                    label: 'My albums',
+                    selected: _filter == _AlbumFilter.mine,
+                    onTap: () => setState(() => _filter = _AlbumFilter.mine),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: albums.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(child: Text('相簿加载失败：$error')),
+                data: (albums) {
+                  final filtered = _filterAlbums(albums);
+                  if (filtered.isEmpty) {
+                    return const ImmichEmptyState(
+                      icon: Icons.photo_album_outlined,
+                      title: '暂无相簿',
+                      subtitle: '新建相簿后会显示在这里',
+                    );
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () async => ref.invalidate(albumsProvider),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                      itemCount: filtered.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return const _AlbumSortHeader();
+                        }
+                        return _AlbumTile(album: filtered[index - 1]);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -144,6 +150,46 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   }
 }
 
+class _AlbumSortHeader extends StatelessWidget {
+  const _AlbumSortHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.keyboard_arrow_up,
+            size: 28,
+            color: immichPrimaryText,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Most recent photo',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: immichPrimaryText,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: '切换布局',
+            onPressed: () {},
+            icon: const Icon(
+              Icons.grid_view_rounded,
+              size: 28,
+              color: immichPrimaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AlbumTile extends ConsumerWidget {
   const _AlbumTile({required this.album});
 
@@ -153,42 +199,69 @@ class _AlbumTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final api = ref.watch(apiClientProvider);
     final thumbnailId = album.albumThumbnailAssetId;
-    return ListTile(
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
       onTap: () => context.push('/albums/${album.id}'),
-      dense: true,
-      minVerticalPadding: 8,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox.square(
-          dimension: 64,
-          child: thumbnailId == null
-              ? ColoredBox(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.photo_album_outlined),
-                )
-              : CachedNetworkImage(
-                  imageUrl: api.thumbnailUrl(thumbnailId),
-                  httpHeaders: {
-                    if (api.dio.options.headers['Authorization'] != null)
-                      'Authorization':
-                          api.dio.options.headers['Authorization'] as String,
-                  },
-                  fit: BoxFit.cover,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SizedBox.square(
+                dimension: 78,
+                child: thumbnailId == null
+                    ? ColoredBox(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.08),
+                        child: const Icon(Icons.photo_album_outlined, size: 40),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: api.thumbnailUrl(thumbnailId),
+                        httpHeaders: {
+                          if (api.dio.options.headers['Authorization'] != null)
+                            'Authorization':
+                                api.dio.options.headers['Authorization']
+                                    as String,
+                        },
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 22),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    album.albumName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: immichPrimaryText,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${album.assetCount} items · ${album.shared ? 'Shared' : 'Owned'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: immichSecondaryText,
+                      fontSize: 14,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      title: Text(
-        album.albumName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17),
-      ),
-      subtitle: Text(
-        '${album.assetCount} items${album.shared ? ' · shared' : ''}',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-      ),
-      trailing: const Icon(Icons.chevron_right),
     );
   }
 }

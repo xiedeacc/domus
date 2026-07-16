@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/asset.dart';
+import '../../shared/immich_style.dart';
 import '../../timeline/widgets/asset_thumbnail.dart';
 import '../data/search_repository.dart';
 
@@ -50,40 +51,90 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final query = _controller.text.trim();
-    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('搜索')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          SearchBar(
-            controller: _controller,
-            hintText: '搜索照片和视频',
-            leading: const Icon(Icons.search),
-            elevation: const WidgetStatePropertyAll(0),
-            backgroundColor: WidgetStatePropertyAll(
-              colors.surfaceContainerHighest,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            ImmichSearchField(
+              controller: _controller,
+              hintText: 'Sunrise on the beach',
+              leadingIcon: Icons.photo_size_select_actual_outlined,
+              onClear: () {
+                _controller.clear();
+                _runSearch();
+              },
+              onSubmitted: (_) => _runSearch(),
             ),
-            constraints: const BoxConstraints(minHeight: 52),
-            trailing: [
-              if (query.isNotEmpty)
-                IconButton(
-                  tooltip: '清除',
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _controller.clear();
-                    _runSearch();
-                  },
-                ),
-            ],
-            onSubmitted: (_) => _runSearch(),
-          ),
-          const SizedBox(height: 16),
-          if (query.isEmpty)
-            const _SearchLanding()
-          else
-            _SearchResults(future: _future),
-        ],
+            const SizedBox(height: 18),
+            const _SearchCategoryRail(),
+            const SizedBox(height: 38),
+            if (query.isEmpty)
+              const _SearchLanding()
+            else
+              _SearchResults(future: _future),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchCategoryRail extends StatelessWidget {
+  const _SearchCategoryRail();
+
+  @override
+  Widget build(BuildContext context) {
+    const categories = [
+      (Icons.groups_outlined, 'People'),
+      (Icons.location_on_outlined, 'Location'),
+      (Icons.photo_camera_outlined, 'Camera'),
+      (Icons.calendar_month_outlined, 'Date'),
+    ];
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final item = categories[index];
+          return _SearchCategoryChip(icon: item.$1, label: item.$2);
+        },
+      ),
+    );
+  }
+}
+
+class _SearchCategoryChip extends StatelessWidget {
+  const _SearchCategoryChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface,
+      shape: StadiumBorder(side: BorderSide(color: colors.outlineVariant)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: immichPrimaryText),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: immichPrimaryText,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -95,20 +146,59 @@ class _SearchLanding extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        SizedBox.square(
+          dimension: 104,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Icon(
+              Icons.camera_alt_outlined,
+              size: 58,
+              color: colors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 26),
+        Text(
+          'Search for your photos and videos',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: immichPrimaryText,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 34),
+        const _SearchShortcutPanel(),
+      ],
+    );
+  }
+}
+
+class _SearchShortcutPanel extends StatelessWidget {
+  const _SearchShortcutPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.outlineVariant),
+        color: colors.primary.withValues(alpha: 0.045),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         children: const [
           _SearchShortcut(icon: Icons.access_time, label: '最近拍摄'),
-          Divider(height: 1, indent: 56),
+          Divider(height: 1, indent: 72),
           _SearchShortcut(icon: Icons.upload_outlined, label: '最近添加'),
-          Divider(height: 1, indent: 56),
+          Divider(height: 1, indent: 72),
           _SearchShortcut(icon: Icons.play_circle_outline, label: '视频'),
-          Divider(height: 1, indent: 56),
+          Divider(height: 1, indent: 72),
           _SearchShortcut(icon: Icons.favorite_border, label: '收藏'),
         ],
       ),
@@ -124,13 +214,25 @@ class _SearchShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      minLeadingWidth: 24,
-      leading: Icon(icon, size: 24),
-      title: Text(
-        label,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17),
+    return SizedBox(
+      height: 62,
+      child: Row(
+        children: [
+          const SizedBox(width: 20),
+          Icon(icon, size: 24, color: immichPrimaryText),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: immichPrimaryText,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

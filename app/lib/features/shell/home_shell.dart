@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/immich_style.dart';
+
 /// Adaptive navigation shell: bottom bar on narrow screens (phone), side
 /// rail on wide screens (web / tablet / desktop).
 class HomeShell extends StatelessWidget {
@@ -159,7 +161,7 @@ class _ImmichNavItem extends StatelessWidget {
               label,
               maxLines: 1,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: selected ? colors.onSurface : inactive,
+                color: selected ? immichPrimaryText : inactive,
                 fontSize: 14,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                 height: 1.0,
