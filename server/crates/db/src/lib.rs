@@ -98,6 +98,19 @@ async fn ensure_runtime_tables(pool: &PgPool) -> Result<()> {
     .execute(pool)
     .await
     .map_err(|e| Error::Database(e.to_string()))?;
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS "session_sync_checkpoint" (
+            "sessionId" blob NOT NULL,
+            "type" text NOT NULL,
+            "ack" text NOT NULL,
+            "createdAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY ("sessionId", "type")
+        )"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
     Ok(())
 }
 

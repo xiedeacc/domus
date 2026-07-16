@@ -86,7 +86,7 @@ class _ImmichBottomNavigationBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 92 + bottomInset.clamp(0, 10),
+          height: 84 + bottomInset.clamp(0, 8),
           child: Row(
             children: [
               for (var i = 0; i < HomeShell._destinations.length; i++)
@@ -141,7 +141,7 @@ class _ImmichNavItem extends StatelessWidget {
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
               width: 72,
-              height: 40,
+              height: 36,
               decoration: BoxDecoration(
                 color: selected
                     ? active.withValues(alpha: 0.14)
@@ -151,17 +151,18 @@ class _ImmichNavItem extends StatelessWidget {
               child: Icon(
                 selected ? selectedIcon : icon,
                 color: selected ? active : inactive,
-                size: 30,
+                size: 28,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               label,
               maxLines: 1,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: selected ? colors.onSurface : inactive,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                height: 1.0,
               ),
             ),
           ],

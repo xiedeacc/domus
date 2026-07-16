@@ -7,11 +7,6 @@ import '../../../core/api/api_client.dart';
 import '../../../models/album.dart';
 import '../data/album_repository.dart';
 
-const _pageColor = Color(0xFFFBFAFF);
-const _panelColor = Color(0xFFF0EEF8);
-const _primary = Color(0xFF4B55A8);
-const _text = Color(0xFF202124);
-
 enum _AlbumFilter { all, shared, mine }
 
 class AlbumsPage extends ConsumerStatefulWidget {
@@ -37,7 +32,7 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
     super.dispose();
   }
 
-  List<Album> _applyFilters(List<Album> albums) {
+  List<Album> _filterAlbums(List<Album> albums) {
     final query = _controller.text.trim().toLowerCase();
     return [
       for (final album in albums)
@@ -52,38 +47,85 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
   @override
   Widget build(BuildContext context) {
     final albums = ref.watch(albumsProvider);
-
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: _pageColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _AlbumsTopBar(
-              onRefresh: () => ref.invalidate(albumsProvider),
-              onCreate: () => _showCreateAlbumDialog(context, ref),
-            ),
-            _AlbumSearchField(controller: _controller),
-            _AlbumFilters(
-              value: _filter,
-              onChanged: (value) => setState(() => _filter = value),
-            ),
-            Expanded(
-              child: albums.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _AlbumsErrorView(
-                  onRetry: () => ref.invalidate(albumsProvider),
-                ),
-                data: (albums) {
-                  final filtered = _applyFilters(albums);
-                  if (filtered.isEmpty) {
-                    return const _EmptyAlbumsView();
-                  }
-                  return _AlbumList(albums: filtered);
-                },
+      appBar: AppBar(
+        title: const Text('相簿'),
+        actions: [
+          IconButton(
+            tooltip: '刷新',
+            icon: const Icon(Icons.sync),
+            onPressed: () => ref.invalidate(albumsProvider),
+          ),
+          IconButton(
+            tooltip: '新建相簿',
+            icon: const Icon(Icons.add),
+            onPressed: () => _showCreateAlbumDialog(context, ref),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: SearchBar(
+              controller: _controller,
+              hintText: '搜索相簿',
+              leading: const Icon(Icons.search),
+              elevation: const WidgetStatePropertyAll(0),
+              backgroundColor: WidgetStatePropertyAll(
+                colors.surfaceContainerHighest,
               ),
+              constraints: const BoxConstraints(minHeight: 52),
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<_AlbumFilter>(
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                textStyle: WidgetStatePropertyAll(
+                  Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              segments: const [
+                ButtonSegment(value: _AlbumFilter.all, label: Text('全部')),
+                ButtonSegment(value: _AlbumFilter.shared, label: Text('共享')),
+                ButtonSegment(value: _AlbumFilter.mine, label: Text('我的')),
+              ],
+              selected: {_filter},
+              onSelectionChanged: (value) =>
+                  setState(() => _filter = value.first),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: albums.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(child: Text('相簿加载失败：$error')),
+              data: (albums) {
+                final filtered = _filterAlbums(albums);
+                if (filtered.isEmpty) {
+                  return const Center(child: Text('暂无相簿'));
+                }
+                return RefreshIndicator(
+                  onRefresh: () async => ref.invalidate(albumsProvider),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) =>
+                        _AlbumTile(album: filtered[index]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -96,269 +138,14 @@ class _AlbumsPageState extends ConsumerState<AlbumsPage> {
       context: context,
       builder: (_) => const _CreateAlbumDialog(),
     );
-    if (name == null || name.trim().isEmpty) {
-      return;
-    }
-    if (!context.mounted) return;
+    if (name == null || name.trim().isEmpty) return;
     await ref.read(albumRepositoryProvider).create(name.trim());
-    if (!context.mounted) return;
     ref.invalidate(albumsProvider);
   }
 }
 
-class _AlbumsTopBar extends StatelessWidget {
-  const _AlbumsTopBar({required this.onRefresh, required this.onCreate});
-
-  final VoidCallback onRefresh;
-  final VoidCallback onCreate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
-      child: Row(
-        children: [
-          const _DomusLogoTitle(),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: onRefresh,
-            icon: const Icon(Icons.sync, color: _primary, size: 26),
-          ),
-          IconButton(
-            tooltip: 'Create album',
-            onPressed: onCreate,
-            icon: const Icon(Icons.add, color: _primary, size: 28),
-          ),
-          const SizedBox(width: 4),
-          const CircleAvatar(
-            radius: 24,
-            backgroundColor: Color(0xFFE8BE21),
-            child: Text(
-              'X',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DomusLogoTitle extends StatelessWidget {
-  const _DomusLogoTitle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFF8B3D),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: const Icon(Icons.home_rounded, color: Colors.white, size: 23),
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          'domus',
-          style: TextStyle(
-            color: _primary,
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AlbumSearchField extends StatelessWidget {
-  const _AlbumSearchField({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Container(
-        height: 58,
-        decoration: BoxDecoration(
-          color: _panelColor,
-          borderRadius: BorderRadius.circular(34),
-        ),
-        child: TextField(
-          controller: controller,
-          style: const TextStyle(fontSize: 20),
-          decoration: const InputDecoration(
-            hintText: 'Search albums',
-            prefixIcon: Icon(Icons.search, size: 28),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 16),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AlbumFilters extends StatelessWidget {
-  const _AlbumFilters({required this.value, required this.onChanged});
-
-  final _AlbumFilter value;
-  final ValueChanged<_AlbumFilter> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const entries = [
-      (_AlbumFilter.all, 'All'),
-      (_AlbumFilter.shared, 'Shared with me'),
-      (_AlbumFilter.mine, 'My albums'),
-    ];
-
-    return SizedBox(
-      height: 50,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: entries.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final (filter, label) = entries[index];
-          final selected = value == filter;
-          return ChoiceChip(
-            showCheckmark: false,
-            selected: selected,
-            label: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            selectedColor: _primary,
-            backgroundColor: _pageColor,
-            labelStyle: TextStyle(color: selected ? Colors.white : _text),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-            ),
-            onSelected: (_) => onChanged(filter),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _AlbumList extends ConsumerWidget {
-  const _AlbumList({required this.albums});
-
-  final List<Album> albums;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
-      itemCount: albums.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return const Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: _AlbumSortRow(),
-          );
-        }
-        final album = albums[index - 1];
-        return _AlbumRow(album: album);
-      },
-    );
-  }
-}
-
-class _AlbumSortRow extends StatelessWidget {
-  const _AlbumSortRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Icon(Icons.keyboard_arrow_up, size: 28, color: _text),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Most recent photo',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
-              color: _text,
-            ),
-          ),
-        ),
-        Icon(Icons.grid_view_rounded, size: 28, color: _text),
-      ],
-    );
-  }
-}
-
-class _AlbumRow extends ConsumerWidget {
-  const _AlbumRow({required this.album});
-
-  final Album album;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return InkWell(
-      onTap: () => context.go('/albums/${album.id}'),
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: Row(
-          children: [
-            _AlbumCover(album: album),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    album.albumName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _text,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${album.assetCount} items • ${album.shared ? 'Shared' : 'Owned'}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF6D6873),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AlbumCover extends ConsumerWidget {
-  const _AlbumCover({required this.album});
+class _AlbumTile extends ConsumerWidget {
+  const _AlbumTile({required this.album});
 
   final Album album;
 
@@ -366,39 +153,42 @@ class _AlbumCover extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final api = ref.watch(apiClientProvider);
     final thumbnailId = album.albumThumbnailAssetId;
-    final headers = {
-      if (api.dio.options.headers['Authorization'] != null)
-        'Authorization': api.dio.options.headers['Authorization'] as String,
-    };
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 96,
-        height: 96,
-        child: thumbnailId == null
-            ? Container(
-                color: _panelColor,
-                child: const Icon(
-                  Icons.photo_album_outlined,
-                  size: 34,
-                  color: _primary,
+    return ListTile(
+      onTap: () => context.push('/albums/${album.id}'),
+      dense: true,
+      minVerticalPadding: 8,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox.square(
+          dimension: 64,
+          child: thumbnailId == null
+              ? ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: const Icon(Icons.photo_album_outlined),
+                )
+              : CachedNetworkImage(
+                  imageUrl: api.thumbnailUrl(thumbnailId),
+                  httpHeaders: {
+                    if (api.dio.options.headers['Authorization'] != null)
+                      'Authorization':
+                          api.dio.options.headers['Authorization'] as String,
+                  },
+                  fit: BoxFit.cover,
                 ),
-              )
-            : CachedNetworkImage(
-                imageUrl: api.thumbnailUrl(thumbnailId, size: 'preview'),
-                httpHeaders: headers,
-                fit: BoxFit.cover,
-                placeholder: (_, _) => Container(color: _panelColor),
-                errorWidget: (_, _, _) => Container(
-                  color: _panelColor,
-                  child: const Icon(
-                    Icons.broken_image_outlined,
-                    color: _primary,
-                  ),
-                ),
-              ),
+        ),
       ),
+      title: Text(
+        album.albumName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17),
+      ),
+      subtitle: Text(
+        '${album.assetCount} items${album.shared ? ' · shared' : ''}',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+      ),
+      trailing: const Icon(Icons.chevron_right),
     );
   }
 }
@@ -411,13 +201,7 @@ class _CreateAlbumDialog extends StatefulWidget {
 }
 
 class _CreateAlbumDialogState extends State<_CreateAlbumDialog> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
+  final _controller = TextEditingController();
 
   @override
   void dispose() {
@@ -425,76 +209,26 @@ class _CreateAlbumDialogState extends State<_CreateAlbumDialog> {
     super.dispose();
   }
 
-  void _submit(String? value) {
-    FocusScope.of(context).unfocus();
-    Navigator.of(context).pop(value);
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('New album'),
-    content: TextField(
-      controller: _controller,
-      autofocus: true,
-      decoration: const InputDecoration(labelText: 'Name'),
-      textInputAction: TextInputAction.done,
-      onSubmitted: _submit,
-    ),
-    actions: [
-      TextButton(onPressed: () => _submit(null), child: const Text('Cancel')),
-      FilledButton(
-        onPressed: () => _submit(_controller.text),
-        child: const Text('Create'),
-      ),
-    ],
-  );
-}
-
-class _EmptyAlbumsView extends StatelessWidget {
-  const _EmptyAlbumsView();
-
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'No albums',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-        ),
+    return AlertDialog(
+      title: const Text('新建相簿'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: '名称'),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
       ),
-    );
-  }
-}
-
-class _AlbumsErrorView extends StatelessWidget {
-  const _AlbumsErrorView({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              'Albums unavailable',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
         ),
-      ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('创建'),
+        ),
+      ],
     );
   }
 }

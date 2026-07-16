@@ -41,7 +41,12 @@ impl AlbumRepository {
                      SELECT 1 FROM album_user au WHERE au."albumId" = a.id AND au."userId" = $1
                  ))
                  {shared_clause}
-               ORDER BY a."createdAt" DESC"#,
+               ORDER BY (
+                   SELECT COUNT(*)
+                   FROM album_asset aa
+                   JOIN asset asset ON asset.id = aa."assetId"
+                   WHERE aa."albumId" = a.id AND asset."deletedAt" IS NULL
+               ) DESC, a."createdAt" DESC"#,
         );
         sqlx::query_as::<_, Album>(&sql)
             .bind(user_id)
@@ -99,6 +104,25 @@ impl AlbumRepository {
         .fetch_one(&self.pool)
         .await
         .map(|(count,)| count)
+        .map_err(db_err)
+    }
+
+    pub async fn asset_links_for_user(&self, user_id: Uuid) -> Result<Vec<(Uuid, Uuid)>> {
+        sqlx::query_as::<_, (Uuid, Uuid)>(
+            r#"SELECT aa."albumId", aa."assetId"
+               FROM album_asset aa
+               JOIN album a ON a.id = aa."albumId"
+               JOIN asset asset ON asset.id = aa."assetId"
+               WHERE a."deletedAt" IS NULL
+                 AND asset."deletedAt" IS NULL
+                 AND (a."ownerId" = $1 OR EXISTS (
+                     SELECT 1 FROM album_user au WHERE au."albumId" = a.id AND au."userId" = $1
+                 ))
+               ORDER BY aa."createdAt" ASC, aa."albumId" ASC, aa."assetId" ASC"#,
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
         .map_err(db_err)
     }
 

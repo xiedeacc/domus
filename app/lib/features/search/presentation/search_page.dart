@@ -2,20 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../models/asset.dart';
 import '../../timeline/widgets/asset_thumbnail.dart';
 import '../data/search_repository.dart';
 
-const _pageColor = Color(0xFFFBFAFF);
-const _panelColor = Color(0xFFF0EEF8);
-const _primary = Color(0xFF4B55A8);
-const _text = Color(0xFF202124);
-
-/// Search: metadata filters (filename, city, camera, date) backed by
-/// POST /search/metadata. Smart (CLIP) search is intentionally disabled while
-/// Domus runs without the ML service.
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -25,13 +16,12 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
-  late Future<List<Asset>> _future;
   Timer? _debounce;
+  Future<List<Asset>> _future = Future.value(const []);
 
   @override
   void initState() {
     super.initState();
-    _future = Future.value(const []);
     _controller.addListener(_queueSearch);
   }
 
@@ -49,7 +39,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _runSearch() {
-    if (!mounted) return;
     final query = _controller.text.trim();
     setState(() {
       _future = query.isEmpty
@@ -58,85 +47,42 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
   }
 
-  void _retry() {
-    setState(() {
-      _future = ref
-          .read(searchRepositoryProvider)
-          .search(_controller.text.trim());
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hasQuery = _controller.text.trim().isNotEmpty;
-
+    final query = _controller.text.trim();
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: _pageColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _SearchHeader(controller: _controller, onSubmit: _runSearch),
-            Expanded(
-              child: hasQuery
-                  ? _SearchResults(
-                      future: _future,
-                      query: _controller.text.trim(),
-                      onRetry: _retry,
-                    )
-                  : const _SearchLanding(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SearchHeader extends StatelessWidget {
-  const _SearchHeader({required this.controller, required this.onSubmit});
-
-  final TextEditingController controller;
-  final VoidCallback onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-      child: Row(
+      appBar: AppBar(title: const Text('搜索')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          Expanded(
-            child: Container(
-              height: 54,
-              decoration: BoxDecoration(
-                color: _panelColor,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: TextField(
-                controller: controller,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => onSubmit(),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontSize: 20),
-                decoration: const InputDecoration(
-                  hintText: 'Sunrise on the beach',
-                  prefixIcon: Icon(
-                    Icons.image_search_outlined,
-                    color: _primary,
-                    size: 28,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
+          SearchBar(
+            controller: _controller,
+            hintText: '搜索照片和视频',
+            leading: const Icon(Icons.search),
+            elevation: const WidgetStatePropertyAll(0),
+            backgroundColor: WidgetStatePropertyAll(
+              colors.surfaceContainerHighest,
             ),
+            constraints: const BoxConstraints(minHeight: 52),
+            trailing: [
+              if (query.isNotEmpty)
+                IconButton(
+                  tooltip: '清除',
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    _controller.clear();
+                    _runSearch();
+                  },
+                ),
+            ],
+            onSubmitted: (_) => _runSearch(),
           ),
-          const SizedBox(width: 10),
-          IconButton(
-            tooltip: 'More',
-            icon: const Icon(Icons.more_vert, color: _primary, size: 28),
-            onPressed: () {},
-          ),
+          const SizedBox(height: 16),
+          if (query.isEmpty)
+            const _SearchLanding()
+          else
+            _SearchResults(future: _future),
         ],
       ),
     );
@@ -148,269 +94,89 @@ class _SearchLanding extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-      children: const [
-        _SearchChips(),
-        SizedBox(height: 76),
-        _SearchIllustration(),
-        SizedBox(height: 20),
-        Center(
-          child: Text(
-            'Search for your photos and videos',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _text,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        SizedBox(height: 34),
-        _QuickSearchPanel(),
-      ],
-    );
-  }
-}
-
-class _SearchChips extends StatelessWidget {
-  const _SearchChips();
-
-  @override
-  Widget build(BuildContext context) {
-    const chips = [
-      (Icons.groups_outlined, 'People'),
-      (Icons.location_on_outlined, 'Location'),
-      (Icons.photo_camera_outlined, 'Camera'),
-      (Icons.calendar_month_outlined, 'Date'),
-    ];
-
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final (icon, label) = chips[index];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            decoration: BoxDecoration(
-              color: _pageColor,
-              border: Border.all(color: const Color(0xFFE5E2EA)),
-              borderRadius: BorderRadius.circular(27),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 22, color: _text),
-                const SizedBox(width: 8),
-                Text(label, style: const TextStyle(fontSize: 16, color: _text)),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SearchIllustration extends StatelessWidget {
-  const _SearchIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 112,
-        height: 112,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8E5FA),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Stack(
-          alignment: Alignment.center,
-          children: [
-            Icon(Icons.photo_camera_outlined, color: _primary, size: 72),
-            Positioned(
-              bottom: 18,
-              child: Icon(
-                Icons.photo_outlined,
-                color: Color(0xFFEF7F45),
-                size: 36,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickSearchPanel extends StatelessWidget {
-  const _QuickSearchPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    const rows = [
-      (Icons.access_time, 'Recently taken'),
-      (Icons.upload_outlined, 'Recently added'),
-      (Icons.play_circle_outline, 'Videos'),
-      (Icons.favorite_border, 'Favorites'),
-    ];
-
-    return Container(
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: _panelColor,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE7E3EE)),
+        color: colors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++)
-            _QuickSearchRow(
-              icon: rows[i].$1,
-              label: rows[i].$2,
-              showDivider: i != rows.length - 1,
-            ),
+        children: const [
+          _SearchShortcut(icon: Icons.access_time, label: '最近拍摄'),
+          Divider(height: 1, indent: 56),
+          _SearchShortcut(icon: Icons.upload_outlined, label: '最近添加'),
+          Divider(height: 1, indent: 56),
+          _SearchShortcut(icon: Icons.play_circle_outline, label: '视频'),
+          Divider(height: 1, indent: 56),
+          _SearchShortcut(icon: Icons.favorite_border, label: '收藏'),
         ],
       ),
     );
   }
 }
 
-class _QuickSearchRow extends StatelessWidget {
-  const _QuickSearchRow({
-    required this.icon,
-    required this.label,
-    required this.showDivider,
-  });
+class _SearchShortcut extends StatelessWidget {
+  const _SearchShortcut({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        height: 72,
-        decoration: BoxDecoration(
-          border: showDivider
-              ? const Border(bottom: BorderSide(color: Color(0xFFE7E3EE)))
-              : null,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          children: [
-            Icon(icon, size: 28, color: const Color(0xFF55525D)),
-            const SizedBox(width: 22),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: _text,
-              ),
-            ),
-          ],
-        ),
+    return ListTile(
+      dense: true,
+      minLeadingWidth: 24,
+      leading: Icon(icon, size: 24),
+      title: Text(
+        label,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17),
       ),
     );
   }
 }
 
 class _SearchResults extends StatelessWidget {
-  const _SearchResults({
-    required this.future,
-    required this.query,
-    required this.onRetry,
-  });
+  const _SearchResults({required this.future});
 
   final Future<List<Asset>> future;
-  final String query;
-  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
+    return FutureBuilder<List<Asset>>(
       future: future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
         if (snapshot.hasError) {
-          return _SearchErrorView(onRetry: onRetry);
+          return Padding(
+            padding: const EdgeInsets.only(top: 48),
+            child: Center(child: Text('搜索失败：${snapshot.error}')),
+          );
         }
         final assets = snapshot.data ?? const [];
         if (assets.isEmpty) {
-          return Center(
-            child: Text(
-              'No results for "$query"',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+          return const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(child: Text('没有找到匹配内容')),
           );
         }
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Text(
-                  'Search results',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ),
-            SliverGrid.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 160,
-                mainAxisSpacing: 2,
-                crossAxisSpacing: 2,
-              ),
-              itemCount: assets.length,
-              itemBuilder: (context, i) => AssetThumbnail(
-                asset: assets[i],
-                onTap: () => context.push('/asset/${assets[i].id}'),
-              ),
-            ),
-          ],
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 2,
+          ),
+          itemCount: assets.length,
+          itemBuilder: (context, index) => AssetThumbnail(asset: assets[index]),
         );
       },
-    );
-  }
-}
-
-class _SearchErrorView extends StatelessWidget {
-  const _SearchErrorView({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              'Search is unavailable',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

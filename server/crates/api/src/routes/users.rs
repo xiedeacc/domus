@@ -18,19 +18,19 @@ pub fn router() -> Router<AppState> {
         .route("/users/me", get(get_my_user).put(super::not_implemented))
         .route(
             "/users/me/preferences",
-            get(super::not_implemented).put(super::not_implemented),
+            get(get_my_preferences).put(update_my_preferences),
         )
         .route(
             "/users/me/license",
-            get(super::not_implemented)
-                .put(super::not_implemented)
-                .delete(super::not_implemented),
+            get(get_my_license)
+                .put(update_my_license)
+                .delete(delete_my_license),
         )
         .route(
             "/users/me/onboarding",
-            get(super::not_implemented)
-                .put(super::not_implemented)
-                .delete(super::not_implemented),
+            get(get_my_onboarding)
+                .put(update_my_onboarding)
+                .delete(delete_my_onboarding),
         )
         .route(
             "/users/profile-image",
@@ -73,6 +73,54 @@ async fn get_my_user(
     Ok(Json((&user).into()))
 }
 
+async fn get_my_preferences(Auth(_): Auth) -> Json<serde_json::Value> {
+    Json(default_user_preferences())
+}
+
+async fn update_my_preferences(
+    Auth(_): Auth,
+    Json(dto): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let mut preferences = default_user_preferences();
+    merge_json(&mut preferences, dto);
+    Json(preferences)
+}
+
+async fn get_my_license(Auth(_): Auth) -> Json<serde_json::Value> {
+    Json(serde_json::json!(null))
+}
+
+async fn update_my_license(
+    Auth(_): Auth,
+    Json(_dto): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!(null))
+}
+
+async fn delete_my_license(Auth(_): Auth) -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+async fn get_my_onboarding(Auth(_): Auth) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "isOnboarded": true }))
+}
+
+async fn update_my_onboarding(
+    Auth(_): Auth,
+    Json(dto): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "isOnboarded": dto
+            .get("isOnboarded")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true)
+    }))
+}
+
+async fn delete_my_onboarding(Auth(_): Auth) -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
 async fn get_user(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -80,6 +128,77 @@ async fn get_user(
 ) -> ApiResult<Json<UserResponseDto>> {
     let user = state.services.user.get(id).await?;
     Ok(Json((&user).into()))
+}
+
+fn default_user_preferences() -> serde_json::Value {
+    serde_json::json!({
+        "albums": { "defaultAssetOrder": "desc" },
+        "cast": { "gCastEnabled": false },
+        "download": {
+            "archiveSize": 4_294_967_296_i64,
+            "includeEmbeddedVideos": true
+        },
+        "emailNotifications": {
+            "albumInvite": true,
+            "albumUpdate": true,
+            "enabled": false
+        },
+        "folders": { "enabled": true, "sidebarWeb": true },
+        "memories": { "duration": 3, "enabled": true },
+        "people": { "enabled": false, "minimumFaces": 3, "sidebarWeb": false },
+        "purchase": { "hideBuyButtonUntil": "", "showSupportBadge": false },
+        "ratings": { "enabled": true },
+        "recentlyAdded": { "sidebarWeb": true },
+        "sharedLinks": { "enabled": true, "sidebarWeb": true },
+        "tags": { "enabled": true, "sidebarWeb": true }
+    })
+}
+
+fn merge_json(target: &mut serde_json::Value, patch: serde_json::Value) {
+    match (target, patch) {
+        (serde_json::Value::Object(target), serde_json::Value::Object(patch)) => {
+            for (key, value) in patch {
+                merge_json(target.entry(key).or_insert(serde_json::Value::Null), value);
+            }
+        }
+        (target, value) => *target = value,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{default_user_preferences, merge_json};
+    use serde_json::json;
+
+    #[test]
+    fn user_preferences_include_all_immich_required_sections() {
+        let preferences = default_user_preferences();
+        for key in [
+            "albums",
+            "cast",
+            "download",
+            "emailNotifications",
+            "folders",
+            "memories",
+            "people",
+            "purchase",
+            "ratings",
+            "recentlyAdded",
+            "sharedLinks",
+            "tags",
+        ] {
+            assert!(preferences.get(key).is_some(), "missing {key}");
+        }
+        assert_eq!(preferences["memories"]["enabled"], true);
+    }
+
+    #[test]
+    fn user_preferences_update_merges_nested_values() {
+        let mut preferences = default_user_preferences();
+        merge_json(&mut preferences, json!({"memories": {"enabled": false}}));
+        assert_eq!(preferences["memories"]["enabled"], false);
+        assert_eq!(preferences["memories"]["duration"], 3);
+    }
 }
 
 async fn admin_list_users(

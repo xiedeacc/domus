@@ -80,6 +80,24 @@ impl AssetRepository {
         Ok(assets)
     }
 
+    pub async fn list_for_user(&self, owner_id: Uuid) -> Result<Vec<Asset>> {
+        let rows = sqlx::query(
+            r#"SELECT id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
+                      "originalPath", "originalFileName", checksum, visibility,
+                      "isFavorite", "isOffline", "isExternal", "livePhotoVideoId",
+                      "stackId", CAST(duration AS TEXT) AS duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
+                      "localDateTime", "createdAt", "updatedAt", "deletedAt"
+               FROM asset
+               WHERE "ownerId" = $1
+               ORDER BY "updatedAt" ASC, id ASC"#,
+        )
+        .bind(owner_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?;
+        rows.iter().map(asset_from_row).collect()
+    }
+
     pub async fn list_by_stack(&self, stack_id: Uuid) -> Result<Vec<Asset>> {
         let rows = sqlx::query(
             r#"SELECT id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
