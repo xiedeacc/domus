@@ -30,6 +30,19 @@ Thumbs.db
 .env
 *.local
 
+# Runtime/deployment state
+.backup-worktree/
+bin/
+conf/
+data/
+logs/
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.log
+
 # generic build output (safety net)
 target/
 build/
