@@ -62,31 +62,63 @@ sync_source() {
     mkdir -p "$work_dir/bin" "$work_dir/conf" "$work_dir/data"
 
     if [ -d "$install_dir/bin" ]; then
-        rsync -a --delete \
-            --exclude '*.bak-*' \
-            --exclude '*.bak' \
-            "$install_dir/bin/" "$work_dir/bin/"
+        copy_tree "$install_dir/bin" "$work_dir/bin" should_exclude_bin
     fi
     if [ -d "$install_dir/conf" ]; then
-        rsync -a --delete "$install_dir/conf/" "$work_dir/conf/"
+        copy_tree "$install_dir/conf" "$work_dir/conf" should_exclude_none
     fi
     if [ -d "$install_dir/data" ]; then
-        rsync -a --delete \
-            --exclude '/.backup.lock' \
-            --exclude '/.domus.sqlite3.*.tmp*' \
-            --exclude '/domus.sqlite3' \
-            --exclude '/domus.sqlite3.bak' \
-            --exclude '/domus.sqlite3-shm' \
-            --exclude '/domus.sqlite3-wal' \
-            --exclude '/backups/' \
-            --exclude '/upload/' \
-            --exclude '/library/' \
-            --exclude '/thumbs/' \
-            --exclude '/thumbs*/' \
-            --exclude '/encoded-video/' \
-            --exclude '/profile/' \
-            "$install_dir/data/" "$work_dir/data/"
+        copy_tree "$install_dir/data" "$work_dir/data" should_exclude_data
     fi
+}
+
+clear_directory() {
+    local dir="$1"
+    mkdir -p "$dir"
+    find "$dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+}
+
+should_exclude_none() {
+    return 1
+}
+
+should_exclude_bin() {
+    case "$1" in
+        *.bak|*.bak-*) return 0 ;;
+    esac
+    return 1
+}
+
+should_exclude_data() {
+    case "$1" in
+        .backup.lock|.domus.sqlite3.*.tmp*|domus.sqlite3|domus.sqlite3.bak|domus.sqlite3-shm|domus.sqlite3-wal) return 0 ;;
+        backups|backups/*|upload|upload/*|library|library/*|thumbs|thumbs/*|thumbs*|thumbs*/*|encoded-video|encoded-video/*|profile|profile/*) return 0 ;;
+    esac
+    return 1
+}
+
+copy_tree() {
+    local src="$1"
+    local dst="$2"
+    local exclude_func="$3"
+    local rel
+
+    clear_directory "$dst"
+    (
+        cd "$src"
+        while IFS= read -r -d '' rel; do
+            rel="${rel#./}"
+            if "$exclude_func" "$rel"; then
+                continue
+            fi
+            if [ -d "$src/$rel" ] && [ ! -L "$src/$rel" ]; then
+                mkdir -p "$dst/$rel"
+            else
+                mkdir -p "$dst/$(dirname "$rel")"
+                cp -a "$src/$rel" "$dst/$rel"
+            fi
+        done < <(find . -mindepth 1 -print0)
+    )
 }
 
 snapshot_sqlite() {
@@ -204,7 +236,6 @@ commit_and_push_if_changed() {
 
 main() {
     require_command git
-    require_command rsync
     require_command python3
     require_command sqlite3
     require_command find

@@ -5,6 +5,7 @@ set -euo pipefail
 DEST_DIR="${DOMUS_DEST_DIR:-/opt/usr/local/domus}"
 RUN_USER="${DOMUS_RUN_USER:-root}"
 BACKUP_REPO_URL="${DOMUS_BACKUP_REPO_URL:-git@github.com:xiedeacc/domus_data.git}"
+BACKUP_BRANCH="${DOMUS_BACKUP_BRANCH:-master}"
 SYSTEMD_DIR="${DOMUS_SYSTEMD_DIR:-/etc/systemd/system}"
 ENABLE_UNITS="${DOMUS_ENABLE_UNITS:-1}"
 START_TIMER="${DOMUS_START_BACKUP_TIMER:-1}"
@@ -13,6 +14,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() {
     echo "[domus-backup-install] $*"
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        log "required command not found: $1"
+        exit 127
+    fi
 }
 
 install_layout() {
@@ -31,6 +39,28 @@ install_layout() {
     fi
 }
 
+initialize_backup_repo() {
+    if [ -d "$DEST_DIR/.backup-worktree/.git" ]; then
+        git -C "$DEST_DIR/.backup-worktree" remote set-url origin "$BACKUP_REPO_URL"
+        git -C "$DEST_DIR/.backup-worktree" fetch origin "$BACKUP_BRANCH" || true
+        return
+    fi
+
+    rmdir "$DEST_DIR/.backup-worktree" 2>/dev/null || true
+    if git clone --branch "$BACKUP_BRANCH" "$BACKUP_REPO_URL" "$DEST_DIR/.backup-worktree" 2>/dev/null; then
+        log "cloned backup repo into $DEST_DIR/.backup-worktree"
+    else
+        log "backup repo clone failed or remote branch is empty; initializing local worktree"
+        mkdir -p "$DEST_DIR/.backup-worktree"
+        git -C "$DEST_DIR/.backup-worktree" init -b "$BACKUP_BRANCH"
+        git -C "$DEST_DIR/.backup-worktree" remote add origin "$BACKUP_REPO_URL"
+    fi
+
+    if [ "$RUN_USER" != "root" ]; then
+        chown -R "$RUN_USER":"$RUN_USER" "$DEST_DIR/.backup-worktree"
+    fi
+}
+
 write_backup_service() {
     mkdir -p "$SYSTEMD_DIR"
     cat >"$SYSTEMD_DIR/domus-backup.service" <<EOF
@@ -44,6 +74,7 @@ Type=oneshot
 User=${RUN_USER}
 WorkingDirectory=${DEST_DIR}
 Environment=DOMUS_BACKUP_REPO_URL=${BACKUP_REPO_URL}
+Environment=DOMUS_BACKUP_BRANCH=${BACKUP_BRANCH}
 Environment=DOMUS_BACKUP_ROOT=${DEST_DIR}
 Environment=DOMUS_BACKUP_WORK_DIR=${DEST_DIR}/.backup-worktree
 Environment=DOMUS_BACKUP_DB=${DEST_DIR}/data/domus.sqlite3
@@ -96,7 +127,9 @@ enable_units() {
 }
 
 main() {
+    require_command git
     install_layout
+    initialize_backup_repo
     write_backup_service
     write_backup_timer
     enable_units
