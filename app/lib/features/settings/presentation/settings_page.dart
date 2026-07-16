@@ -9,6 +9,7 @@ import '../data/partner_repository.dart';
 import '../data/shared_link_repository.dart';
 import '../data/system_config_repository.dart';
 import '../data/user_admin_repository.dart';
+import 'immich_derivative_panel.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -195,6 +196,8 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           if (auth.user?.isAdmin == true) ...[
+            const Divider(),
+            const ImmichDerivativePanel(),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined),

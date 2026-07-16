@@ -26,6 +26,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::download::router())
         .merge(routes::duplicates::router())
         .merge(routes::faces::router())
+        .merge(routes::immich_derivatives::router())
         .merge(routes::jobs::router())
         .merge(routes::libraries::router())
         .merge(routes::map::router())

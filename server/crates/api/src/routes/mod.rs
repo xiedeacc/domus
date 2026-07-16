@@ -10,6 +10,7 @@ pub mod auth;
 pub mod download;
 pub mod duplicates;
 pub mod faces;
+pub mod immich_derivatives;
 pub mod jobs;
 pub mod libraries;
 pub mod map;

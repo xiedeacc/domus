@@ -4,6 +4,7 @@
 //! pipeline Immich runs (exiftool-vendored + sharp/libvips + ffmpeg).
 
 pub mod exif;
+pub mod immich_derivatives;
 pub mod storage;
 pub mod thumbnail;
 pub mod transcode;
