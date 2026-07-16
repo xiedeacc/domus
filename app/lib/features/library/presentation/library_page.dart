@@ -18,15 +18,15 @@ class LibraryPage extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
           children: const [
             _LibraryTopBar(),
-            SizedBox(height: 18),
+            SizedBox(height: 14),
             _ActionGrid(),
-            SizedBox(height: 28),
-            _DiscoveryGrid(),
             SizedBox(height: 22),
+            _DiscoveryGrid(),
+            SizedBox(height: 18),
             Text(
               'On this device',
               style: TextStyle(
-                fontSize: 27,
+                fontSize: 23,
                 fontWeight: FontWeight.w700,
                 color: _text,
               ),
@@ -48,20 +48,20 @@ class _LibraryTopBar extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: const Color(0xFFFF8B3D),
             borderRadius: BorderRadius.circular(11),
           ),
-          child: const Icon(Icons.home_rounded, color: Colors.white, size: 26),
+          child: const Icon(Icons.home_rounded, color: Colors.white, size: 23),
         ),
         const SizedBox(width: 8),
         const Text(
           'domus',
           style: TextStyle(
             color: _primary,
-            fontSize: 32,
+            fontSize: 26,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -69,17 +69,17 @@ class _LibraryTopBar extends StatelessWidget {
         IconButton(
           tooltip: 'Sync',
           onPressed: () {},
-          icon: const Icon(Icons.sync, color: _primary, size: 30),
+          icon: const Icon(Icons.sync, color: _primary, size: 26),
         ),
         const SizedBox(width: 4),
         const CircleAvatar(
-          radius: 28,
+          radius: 24,
           backgroundColor: Color(0xFFE8BE21),
           child: Text(
             'X',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -98,9 +98,9 @@ class _ActionGrid extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 2.9,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 3.15,
       children: const [
         _ActionTile(icon: Icons.favorite_border, label: 'Favorites'),
         _ActionTile(icon: Icons.archive_outlined, label: 'Archived'),
@@ -133,11 +133,11 @@ class _ActionTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: const Color(0xFFE5E2EA)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 15),
         child: Row(
           children: [
-            Icon(icon, color: _primary, size: 27),
-            const SizedBox(width: 14),
+            Icon(icon, color: _primary, size: 24),
+            const SizedBox(width: 12),
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -146,7 +146,7 @@ class _ActionTile extends StatelessWidget {
                   label,
                   maxLines: 1,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: _text,
                   ),
@@ -169,13 +169,13 @@ class _DiscoveryGrid extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 22,
+      mainAxisSpacing: 18,
       crossAxisSpacing: 14,
-      childAspectRatio: 0.86,
+      childAspectRatio: 0.94,
       children: const [
         _DiscoveryTile(
           label: 'People',
-          child: Icon(Icons.groups_outlined, color: _primary, size: 72),
+          child: Icon(Icons.groups_outlined, color: _primary, size: 60),
         ),
         _DiscoveryTile(label: 'Places', child: _MapPreview()),
       ],
@@ -204,11 +204,11 @@ class _DiscoveryTile extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 9),
         Text(
           label,
           style: const TextStyle(
-            fontSize: 24,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
             color: _text,
           ),
@@ -229,7 +229,7 @@ class _MapPreview extends StatelessWidget {
         child: Text(
           'Honolulu',
           style: TextStyle(
-            fontSize: 26,
+            fontSize: 21,
             fontWeight: FontWeight.w700,
             color: Color(0xFF67616A),
           ),
@@ -327,21 +327,21 @@ class _DeviceRow extends StatelessWidget {
       onTap: route == null ? null : () => context.push(route!),
       borderRadius: BorderRadius.circular(28),
       child: Container(
-        height: 92,
+        height: 76,
         decoration: BoxDecoration(
           border: showDivider
               ? const Border(bottom: BorderSide(color: Color(0xFFE7E3EE)))
               : null,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 26),
+        padding: const EdgeInsets.symmetric(horizontal: 22),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFF55525D), size: 32),
-            const SizedBox(width: 28),
+            Icon(icon, color: const Color(0xFF55525D), size: 28),
+            const SizedBox(width: 22),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: _text,
               ),

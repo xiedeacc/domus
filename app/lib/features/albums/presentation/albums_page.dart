@@ -123,22 +123,22 @@ class _AlbumsTopBar extends StatelessWidget {
           IconButton(
             tooltip: 'Refresh',
             onPressed: onRefresh,
-            icon: const Icon(Icons.sync, color: _primary, size: 30),
+            icon: const Icon(Icons.sync, color: _primary, size: 26),
           ),
           IconButton(
             tooltip: 'Create album',
             onPressed: onCreate,
-            icon: const Icon(Icons.add, color: _primary, size: 32),
+            icon: const Icon(Icons.add, color: _primary, size: 28),
           ),
           const SizedBox(width: 4),
           const CircleAvatar(
-            radius: 28,
+            radius: 24,
             backgroundColor: Color(0xFFE8BE21),
             child: Text(
               'X',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -157,20 +157,20 @@ class _DomusLogoTitle extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: const Color(0xFFFF8B3D),
             borderRadius: BorderRadius.circular(11),
           ),
-          child: const Icon(Icons.home_rounded, color: Colors.white, size: 26),
+          child: const Icon(Icons.home_rounded, color: Colors.white, size: 23),
         ),
         const SizedBox(width: 8),
         const Text(
           'domus',
           style: TextStyle(
             color: _primary,
-            fontSize: 32,
+            fontSize: 26,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -189,19 +189,19 @@ class _AlbumSearchField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Container(
-        height: 72,
+        height: 58,
         decoration: BoxDecoration(
           color: _panelColor,
           borderRadius: BorderRadius.circular(34),
         ),
         child: TextField(
           controller: controller,
-          style: const TextStyle(fontSize: 24),
+          style: const TextStyle(fontSize: 20),
           decoration: const InputDecoration(
             hintText: 'Search albums',
-            prefixIcon: Icon(Icons.search, size: 34),
+            prefixIcon: Icon(Icons.search, size: 28),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 20),
+            contentPadding: EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ),
@@ -224,7 +224,7 @@ class _AlbumFilters extends StatelessWidget {
     ];
 
     return SizedBox(
-      height: 58,
+      height: 50,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -237,11 +237,11 @@ class _AlbumFilters extends StatelessWidget {
             showCheckmark: false,
             selected: selected,
             label: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -268,12 +268,12 @@ class _AlbumList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
       itemCount: albums.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
           return const Padding(
-            padding: EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.only(bottom: 12),
             child: _AlbumSortRow(),
           );
         }
@@ -291,19 +291,19 @@ class _AlbumSortRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        Icon(Icons.keyboard_arrow_up, size: 34, color: _text),
+        Icon(Icons.keyboard_arrow_up, size: 28, color: _text),
         SizedBox(width: 10),
         Expanded(
           child: Text(
             'Most recent photo',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 19,
               fontWeight: FontWeight.w700,
               color: _text,
             ),
           ),
         ),
-        Icon(Icons.grid_view_rounded, size: 32, color: _text),
+        Icon(Icons.grid_view_rounded, size: 28, color: _text),
       ],
     );
   }
@@ -320,11 +320,11 @@ class _AlbumRow extends ConsumerWidget {
       onTap: () => context.go('/albums/${album.id}'),
       borderRadius: BorderRadius.circular(18),
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.only(bottom: 14),
         child: Row(
           children: [
             _AlbumCover(album: album),
-            const SizedBox(width: 22),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,7 +334,7 @@ class _AlbumRow extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: _text,
                     ),
@@ -343,7 +343,7 @@ class _AlbumRow extends ConsumerWidget {
                   Text(
                     '${album.assetCount} items • ${album.shared ? 'Shared' : 'Owned'}',
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 16,
                       color: Color(0xFF6D6873),
                     ),
                   ),
@@ -374,14 +374,14 @@ class _AlbumCover extends ConsumerWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        width: 118,
-        height: 118,
+        width: 96,
+        height: 96,
         child: thumbnailId == null
             ? Container(
                 color: _panelColor,
                 child: const Icon(
                   Icons.photo_album_outlined,
-                  size: 42,
+                  size: 34,
                   color: _primary,
                 ),
               )

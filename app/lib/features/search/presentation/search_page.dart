@@ -106,7 +106,7 @@ class _SearchHeader extends StatelessWidget {
         children: [
           Expanded(
             child: Container(
-              height: 62,
+              height: 54,
               decoration: BoxDecoration(
                 color: _panelColor,
                 borderRadius: BorderRadius.circular(32),
@@ -117,16 +117,16 @@ class _SearchHeader extends StatelessWidget {
                 onSubmitted: (_) => onSubmit(),
                 style: Theme.of(
                   context,
-                ).textTheme.headlineSmall?.copyWith(fontSize: 22),
+                ).textTheme.titleLarge?.copyWith(fontSize: 20),
                 decoration: const InputDecoration(
                   hintText: 'Sunrise on the beach',
                   prefixIcon: Icon(
                     Icons.image_search_outlined,
                     color: _primary,
-                    size: 32,
+                    size: 28,
                   ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 16),
+                  contentPadding: EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -134,7 +134,7 @@ class _SearchHeader extends StatelessWidget {
           const SizedBox(width: 10),
           IconButton(
             tooltip: 'More',
-            icon: const Icon(Icons.more_vert, color: _primary, size: 32),
+            icon: const Icon(Icons.more_vert, color: _primary, size: 28),
             onPressed: () {},
           ),
         ],
@@ -152,21 +152,21 @@ class _SearchLanding extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
       children: const [
         _SearchChips(),
-        SizedBox(height: 92),
+        SizedBox(height: 76),
         _SearchIllustration(),
         SizedBox(height: 20),
         Center(
           child: Text(
             'Search for your photos and videos',
             style: TextStyle(
-              fontSize: 21,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               color: _text,
             ),
             textAlign: TextAlign.center,
           ),
         ),
-        SizedBox(height: 44),
+        SizedBox(height: 34),
         _QuickSearchPanel(),
       ],
     );
@@ -186,7 +186,7 @@ class _SearchChips extends StatelessWidget {
     ];
 
     return SizedBox(
-      height: 54,
+      height: 48,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: chips.length,
@@ -194,7 +194,7 @@ class _SearchChips extends StatelessWidget {
         itemBuilder: (context, index) {
           final (icon, label) = chips[index];
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 15),
             decoration: BoxDecoration(
               color: _pageColor,
               border: Border.all(color: const Color(0xFFE5E2EA)),
@@ -203,9 +203,9 @@ class _SearchChips extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 24, color: _text),
+                Icon(icon, size: 22, color: _text),
                 const SizedBox(width: 8),
-                Text(label, style: const TextStyle(fontSize: 18, color: _text)),
+                Text(label, style: const TextStyle(fontSize: 16, color: _text)),
               ],
             ),
           );
@@ -222,8 +222,8 @@ class _SearchIllustration extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        width: 126,
-        height: 126,
+        width: 112,
+        height: 112,
         decoration: BoxDecoration(
           color: const Color(0xFFE8E5FA),
           borderRadius: BorderRadius.circular(18),
@@ -231,13 +231,13 @@ class _SearchIllustration extends StatelessWidget {
         child: const Stack(
           alignment: Alignment.center,
           children: [
-            Icon(Icons.photo_camera_outlined, color: _primary, size: 82),
+            Icon(Icons.photo_camera_outlined, color: _primary, size: 72),
             Positioned(
               bottom: 18,
               child: Icon(
                 Icons.photo_outlined,
                 color: Color(0xFFEF7F45),
-                size: 42,
+                size: 36,
               ),
             ),
           ],
@@ -296,21 +296,21 @@ class _QuickSearchRow extends StatelessWidget {
       onTap: () {},
       borderRadius: BorderRadius.circular(30),
       child: Container(
-        height: 86,
+        height: 72,
         decoration: BoxDecoration(
           border: showDivider
               ? const Border(bottom: BorderSide(color: Color(0xFFE7E3EE)))
               : null,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 28),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Row(
           children: [
-            Icon(icon, size: 32, color: const Color(0xFF55525D)),
-            const SizedBox(width: 28),
+            Icon(icon, size: 28, color: const Color(0xFF55525D)),
+            const SizedBox(width: 22),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 23,
+                fontSize: 19,
                 fontWeight: FontWeight.w700,
                 color: _text,
               ),
