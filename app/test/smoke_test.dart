@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:domus_app/models/asset.dart';
+import 'package:domus/models/asset.dart';
 
 void main() {
   test('Asset.fromJson parses minimal payload', () {

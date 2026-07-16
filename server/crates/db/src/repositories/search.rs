@@ -1,5 +1,7 @@
+use crate::PgPool;
+use base64::Engine;
 use domus_common::Result;
-use sqlx::PgPool;
+use sqlx::Row;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -22,48 +24,64 @@ impl SearchRepository {
             .or_else(|| filters.get("originalFileName"))
             .and_then(|v| v.as_str())
             .unwrap_or_default();
-        let pattern = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
-        let rows: Vec<serde_json::Value> = sqlx::query_scalar(
-            r#"SELECT jsonb_build_object(
-                   'id', a.id,
-                   'ownerId', a."ownerId",
-                   'type', a.type,
-                   'originalFileName', a."originalFileName",
-                   'localDateTime', to_char(a."localDateTime" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-                   'fileCreatedAt', to_char(a."fileCreatedAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-                   'isFavorite', a."isFavorite",
-                   'isTrashed', a."deletedAt" IS NOT NULL,
-                   'isArchived', a.visibility = 'archive',
-                   'visibility', a.visibility,
-                   'thumbhash', CASE WHEN a.thumbhash IS NULL THEN NULL ELSE encode(a.thumbhash, 'base64') END,
-                   'width', e."exifImageWidth",
-                   'height', e."exifImageHeight"
-               )
+        let owner_id = user_ids.first().copied().unwrap_or_default();
+        let pattern = format!(
+            "%{}%",
+            query
+                .to_ascii_lowercase()
+                .replace('%', "\\%")
+                .replace('_', "\\_")
+        );
+        let rows = sqlx::query(
+            r#"SELECT a.id, a."ownerId", a.type, a."originalFileName", a."localDateTime",
+                      a."fileCreatedAt", a."isFavorite", a."deletedAt", a.visibility,
+                      a.thumbhash, e."exifImageWidth", e."exifImageHeight"
                FROM asset a
                LEFT JOIN asset_exif e ON e."assetId" = a.id
-               WHERE a."ownerId" = ANY($1)
+               WHERE a."ownerId" = $1
                  AND a."deletedAt" IS NULL
                  AND (
                     $2 = '%%'
-                    OR a."originalFileName" ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e.city, '') ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e.state, '') ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e.country, '') ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e.make, '') ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e.model, '') ILIKE $2 ESCAPE '\'
-                    OR COALESCE(e."lensModel", '') ILIKE $2 ESCAPE '\'
-                    OR to_char(a."localDateTime", 'YYYY-MM-DD') ILIKE $2 ESCAPE '\'
-                    OR to_char(a."fileCreatedAt", 'YYYY-MM-DD') ILIKE $2 ESCAPE '\'
+                    OR lower(a."originalFileName") LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e.city, '')) LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e.state, '')) LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e.country, '')) LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e.make, '')) LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e.model, '')) LIKE $2 ESCAPE '\'
+                    OR lower(COALESCE(e."lensModel", '')) LIKE $2 ESCAPE '\'
+                    OR substr(a."localDateTime", 1, 10) LIKE $2 ESCAPE '\'
+                    OR substr(a."fileCreatedAt", 1, 10) LIKE $2 ESCAPE '\'
                  )
                ORDER BY a."localDateTime" DESC
                LIMIT 250"#,
         )
-        .bind(user_ids)
+        .bind(owner_id)
         .bind(&pattern)
         .fetch_all(&self.pool)
         .await
         .map_err(db_err)?;
-        Ok(serde_json::json!({ "assets": { "items": rows, "total": rows.len() } }))
+        let items: Vec<_> = rows
+            .iter()
+            .map(|row| {
+                let thumbhash: Option<Vec<u8>> = row.try_get("thumbhash").ok();
+                serde_json::json!({
+                    "id": row.try_get::<Uuid, _>("id").ok(),
+                    "ownerId": row.try_get::<Uuid, _>("ownerId").ok(),
+                    "type": row.try_get::<String, _>("type").unwrap_or_default(),
+                    "originalFileName": row.try_get::<String, _>("originalFileName").unwrap_or_default(),
+                    "localDateTime": row.try_get::<String, _>("localDateTime").unwrap_or_default(),
+                    "fileCreatedAt": row.try_get::<String, _>("fileCreatedAt").unwrap_or_default(),
+                    "isFavorite": row.try_get::<bool, _>("isFavorite").unwrap_or(false),
+                    "isTrashed": row.try_get::<Option<String>, _>("deletedAt").ok().flatten().is_some(),
+                    "isArchived": row.try_get::<String, _>("visibility").unwrap_or_default() == "archive",
+                    "visibility": row.try_get::<String, _>("visibility").unwrap_or_default(),
+                    "thumbhash": thumbhash.map(|bytes| base64::engine::general_purpose::STANDARD.encode(bytes)),
+                    "width": row.try_get::<Option<i32>, _>("exifImageWidth").ok().flatten(),
+                    "height": row.try_get::<Option<i32>, _>("exifImageHeight").ok().flatten(),
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({ "assets": { "items": items, "total": items.len() } }))
     }
 
     pub async fn suggestions(&self, user_id: Uuid, kind: &str) -> Result<Vec<String>> {

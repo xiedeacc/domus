@@ -1,5 +1,5 @@
+use crate::PgPool;
 use domus_common::{Error, Result};
-use sqlx::PgPool;
 #[allow(unused_imports)]
 use uuid::Uuid;
 

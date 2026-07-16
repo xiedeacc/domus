@@ -1,7 +1,7 @@
 use super::db_err;
 use crate::entities::Album;
+use crate::PgPool;
 use domus_common::Result;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -51,15 +51,17 @@ impl AlbumRepository {
     }
 
     pub async fn create(&self, owner_id: Uuid, name: &str, description: &str) -> Result<Album> {
+        let id = Uuid::new_v4();
         sqlx::query_as::<_, Album>(
-            r#"INSERT INTO album ("ownerId", "albumName", description)
-               VALUES ($1, $2, $3)
+            r#"INSERT INTO album (id, "ownerId", "albumName", description)
+               VALUES ($1, $2, $3, $4)
                RETURNING id, "ownerId" AS owner_id, "albumName" AS album_name,
                          description, "albumThumbnailAssetId" AS album_thumbnail_asset_id,
                          "isActivityEnabled" AS is_activity_enabled, "order",
                          "createdAt" AS created_at, "updatedAt" AS updated_at,
                          "deletedAt" AS deleted_at"#,
         )
+        .bind(id)
         .bind(owner_id)
         .bind(name)
         .bind(description)
@@ -69,22 +71,26 @@ impl AlbumRepository {
     }
 
     pub async fn add_assets(&self, album_id: Uuid, asset_ids: &[Uuid]) -> Result<()> {
-        sqlx::query(
-            r#"INSERT INTO album_asset ("albumId", "assetId")
-               SELECT $1, unnest($2::uuid[])
-               ON CONFLICT DO NOTHING"#,
-        )
-        .bind(album_id)
-        .bind(asset_ids)
-        .execute(&self.pool)
-        .await
-        .map_err(db_err)?;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for asset_id in asset_ids {
+            sqlx::query(
+                r#"INSERT INTO album_asset ("albumId", "assetId", "createdAt")
+                   VALUES ($1, $2, datetime('now'))
+                   ON CONFLICT DO NOTHING"#,
+            )
+            .bind(album_id)
+            .bind(asset_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
     pub async fn asset_count(&self, album_id: Uuid) -> Result<i64> {
         sqlx::query_as(
-            r#"SELECT COUNT(*)::bigint
+            r#"SELECT COUNT(*)
                FROM album_asset aa
                JOIN asset a ON a.id = aa."assetId"
                WHERE aa."albumId" = $1 AND a."deletedAt" IS NULL"#,
@@ -97,12 +103,16 @@ impl AlbumRepository {
     }
 
     pub async fn remove_assets(&self, album_id: Uuid, asset_ids: &[Uuid]) -> Result<()> {
-        sqlx::query(r#"DELETE FROM album_asset WHERE "albumId" = $1 AND "assetId" = ANY($2)"#)
-            .bind(album_id)
-            .bind(asset_ids)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for asset_id in asset_ids {
+            sqlx::query(r#"DELETE FROM album_asset WHERE "albumId" = $1 AND "assetId" = $2"#)
+                .bind(album_id)
+                .bind(asset_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
@@ -147,7 +157,9 @@ impl AlbumRepository {
     }
 
     pub async fn delete(&self, id: Uuid) -> Result<()> {
-        sqlx::query(r#"UPDATE album SET "deletedAt" = now(), "updatedAt" = now() WHERE id = $1"#)
+        sqlx::query(
+            r#"UPDATE album SET "deletedAt" = datetime('now'), "updatedAt" = datetime('now') WHERE id = $1"#,
+        )
             .bind(id)
             .execute(&self.pool)
             .await

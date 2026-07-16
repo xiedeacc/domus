@@ -1,7 +1,7 @@
 use super::db_err;
 use crate::entities::Stack;
+use crate::PgPool;
 use domus_common::{Error, Result};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -54,16 +54,18 @@ impl StackRepository {
         .fetch_one(&mut *tx)
         .await
         .map_err(db_err)?;
-        sqlx::query(
-            r#"UPDATE asset SET "stackId" = $1, "updatedAt" = now()
-               WHERE id = ANY($2) AND "ownerId" = $3"#,
-        )
-        .bind(stack.id)
-        .bind(asset_ids)
-        .bind(owner_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(db_err)?;
+        for asset_id in asset_ids {
+            sqlx::query(
+                r#"UPDATE asset SET "stackId" = $1, "updatedAt" = datetime('now')
+                   WHERE id = $2 AND "ownerId" = $3"#,
+            )
+            .bind(stack.id)
+            .bind(asset_id)
+            .bind(owner_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        }
         tx.commit().await.map_err(db_err)?;
         Ok(stack)
     }
@@ -71,7 +73,7 @@ impl StackRepository {
     pub async fn delete(&self, id: Uuid) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(db_err)?;
         sqlx::query(
-            r#"UPDATE asset SET "stackId" = NULL, "updatedAt" = now() WHERE "stackId" = $1"#,
+            r#"UPDATE asset SET "stackId" = NULL, "updatedAt" = datetime('now') WHERE "stackId" = $1"#,
         )
         .bind(id)
         .execute(&mut *tx)
@@ -88,7 +90,7 @@ impl StackRepository {
 
     pub async fn remove_asset(&self, stack_id: Uuid, asset_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"UPDATE asset SET "stackId" = NULL, "updatedAt" = now()
+            r#"UPDATE asset SET "stackId" = NULL, "updatedAt" = datetime('now')
                WHERE "stackId" = $1 AND id = $2"#,
         )
         .bind(stack_id)

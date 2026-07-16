@@ -17,6 +17,10 @@ pub struct Config {
     /// Root of the media directory (Immich mounts this at /data).
     #[serde(default = "default_media_location")]
     pub media_location: String,
+    /// Optional source media root used by rows imported from/native to Immich.
+    /// When set, paths stored under this root are served from `media_location`.
+    #[serde(default)]
+    pub original_media_location: Option<String>,
     pub database: DatabaseConfig,
     #[serde(default)]
     pub workers: WorkerConfig,
@@ -28,6 +32,10 @@ pub struct DatabaseConfig {
     pub url: String,
     #[serde(default = "default_db_pool")]
     pub max_connections: u32,
+    /// Run Domus-owned migrations on startup. The SQLite deployment normally
+    /// uses an already-created database from scripts/migrate_pg_to_sqlite.py.
+    #[serde(default)]
+    pub run_migrations: bool,
 }
 
 /// Which worker groups this process runs. Mirrors IMMICH_WORKERS_INCLUDE /
@@ -81,8 +89,14 @@ impl Config {
         if let Ok(v) = std::env::var("IMMICH_MEDIA_LOCATION") {
             self.media_location = v;
         }
+        if let Ok(v) = std::env::var("DOMUS_ORIGINAL_MEDIA_LOCATION") {
+            self.original_media_location = (!v.is_empty()).then_some(v);
+        }
         if let Ok(v) = std::env::var("DB_URL") {
             self.database.url = v;
+        }
+        if let Ok(v) = std::env::var("DOMUS_DATABASE_RUN_MIGRATIONS") {
+            self.database.run_migrations = parse_bool(&v);
         }
     }
 }
@@ -97,7 +111,7 @@ fn default_media_location() -> String {
     "/data".into()
 }
 fn default_db_url() -> String {
-    "postgres://postgres:postgres@localhost:5432/immich".into()
+    "sqlite:///opt/usr/local/domus/data/domus.sqlite3".into()
 }
 fn default_db_pool() -> u32 {
     10
@@ -112,11 +126,20 @@ impl Default for Config {
             host: default_host(),
             port: default_port(),
             media_location: default_media_location(),
+            original_media_location: None,
             database: DatabaseConfig {
                 url: default_db_url(),
                 max_connections: default_db_pool(),
+                run_migrations: false,
             },
             workers: WorkerConfig::default(),
         }
     }
+}
+
+fn parse_bool(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }

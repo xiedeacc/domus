@@ -1,7 +1,7 @@
 use super::db_err;
 use crate::entities::User;
+use crate::PgPool;
 use domus_common::Result;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -94,9 +94,10 @@ impl UserRepository {
         name: &str,
         is_admin: bool,
     ) -> Result<User> {
+        let id = Uuid::new_v4();
         sqlx::query_as::<_, User>(
-            r#"INSERT INTO "user" (email, password, name, "isAdmin")
-               VALUES ($1, $2, $3, $4)
+            r#"INSERT INTO "user" (id, email, password, name, "isAdmin")
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING id, email, password, name, "isAdmin" AS is_admin, "avatarColor" AS avatar_color,
                       "profileImagePath" AS profile_image_path, "storageLabel" AS storage_label,
                       "oauthId" AS oauth_id, "quotaSizeInBytes" AS quota_size_in_bytes,
@@ -104,6 +105,7 @@ impl UserRepository {
                       "createdAt" AS created_at, "updatedAt" AS updated_at, "deletedAt" AS deleted_at,
                       "profileChangedAt" AS profile_changed_at"#,
         )
+        .bind(id)
         .bind(email)
         .bind(hashed_password)
         .bind(name)
@@ -120,9 +122,10 @@ impl UserRepository {
         oauth_id: &str,
         is_admin: bool,
     ) -> Result<User> {
+        let id = Uuid::new_v4();
         sqlx::query_as::<_, User>(
-            r#"INSERT INTO "user" (email, password, name, "isAdmin", "oauthId", "shouldChangePassword")
-               VALUES ($1, '', $2, $3, $4, false)
+            r#"INSERT INTO "user" (id, email, password, name, "isAdmin", "oauthId", "shouldChangePassword")
+               VALUES ($1, $2, '', $3, $4, $5, false)
                RETURNING id, email, password, name, "isAdmin" AS is_admin, "avatarColor" AS avatar_color,
                       "profileImagePath" AS profile_image_path, "storageLabel" AS storage_label,
                       "oauthId" AS oauth_id, "quotaSizeInBytes" AS quota_size_in_bytes,
@@ -130,6 +133,7 @@ impl UserRepository {
                       "createdAt" AS created_at, "updatedAt" AS updated_at, "deletedAt" AS deleted_at,
                       "profileChangedAt" AS profile_changed_at"#,
         )
+        .bind(id)
         .bind(email)
         .bind(name)
         .bind(is_admin)
@@ -141,7 +145,7 @@ impl UserRepository {
 
     pub async fn set_oauth_id(&self, user_id: Uuid, oauth_id: &str) -> Result<User> {
         sqlx::query_as::<_, User>(
-            r#"UPDATE "user" SET "oauthId" = $2, "updatedAt" = now()
+            r#"UPDATE "user" SET "oauthId" = $2, "updatedAt" = datetime('now')
                WHERE id = $1
                RETURNING id, email, password, name, "isAdmin" AS is_admin, "avatarColor" AS avatar_color,
                       "profileImagePath" AS profile_image_path, "storageLabel" AS storage_label,

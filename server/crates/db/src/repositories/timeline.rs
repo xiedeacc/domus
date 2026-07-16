@@ -1,7 +1,7 @@
+use crate::PgPool;
 use base64::Engine;
 use chrono::NaiveDate;
 use domus_common::{Error, Result};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Filter set shared by /timeline/buckets and /timeline/bucket.
@@ -43,27 +43,28 @@ impl TimelineRepository {
         if query.person_id.is_some() {
             return Ok(vec![]);
         }
+        let owner_id = query.user_ids.first().copied().unwrap_or_default();
         let trashed = query.is_trashed.unwrap_or(false);
         let order = if query.order_desc { "DESC" } else { "ASC" };
         let sql = format!(
-            r#"SELECT to_char(date_trunc('month', a."localDateTime"), 'YYYY-MM-DD') AS bucket,
-                      COUNT(*)::bigint AS count
+            r#"SELECT substr(a."localDateTime", 1, 7) || '-01' AS bucket,
+                      COUNT(*) AS count
                FROM asset a
-               WHERE a."ownerId" = ANY($1)
-                 AND ($2::uuid IS NULL OR EXISTS (
+               WHERE a."ownerId" = $1
+                 AND ($2 IS NULL OR EXISTS (
                      SELECT 1 FROM album_asset aa WHERE aa."assetId" = a.id AND aa."albumId" = $2
                  ))
-                 AND ($3::uuid IS NULL OR EXISTS (
+                 AND ($3 IS NULL OR EXISTS (
                      SELECT 1 FROM tag_asset ta WHERE ta."assetId" = a.id AND ta."tagId" = $3
                  ))
-                 AND ($4::bool IS NULL OR a."isFavorite" = $4)
-                 AND ((NOT $5::bool AND a."deletedAt" IS NULL) OR ($5::bool AND a."deletedAt" IS NOT NULL))
-                 AND (($6::text IS NOT NULL AND a.visibility = $6) OR ($6::text IS NULL AND a.visibility = 'timeline'))
+                 AND ($4 IS NULL OR a."isFavorite" = $4)
+                 AND (($5 = 0 AND a."deletedAt" IS NULL) OR ($5 = 1 AND a."deletedAt" IS NOT NULL))
+                 AND (($6 IS NOT NULL AND a.visibility = $6) OR ($6 IS NULL AND a.visibility = 'timeline'))
                GROUP BY bucket
                ORDER BY bucket {order}"#,
         );
         sqlx::query_as(&sql)
-            .bind(&query.user_ids)
+            .bind(owner_id)
             .bind(query.album_id)
             .bind(query.tag_id)
             .bind(query.is_favorite)
@@ -82,14 +83,15 @@ impl TimelineRepository {
         if query.person_id.is_some() {
             return Ok(empty_bucket(bucket));
         }
-        let bucket_date = NaiveDate::parse_from_str(bucket, "%Y-%m-%d")
+        let _bucket_date = NaiveDate::parse_from_str(bucket, "%Y-%m-%d")
             .map_err(|_| Error::BadRequest("Invalid time bucket format".into()))?;
+        let owner_id = query.user_ids.first().copied().unwrap_or_default();
         let trashed = query.is_trashed.unwrap_or(false);
         let order = if query.order_desc { "DESC" } else { "ASC" };
         let sql = format!(
             r#"SELECT a.id, a."ownerId" AS owner_id, a.type AS asset_type, a."isFavorite" AS is_favorite,
                       a.visibility, a."deletedAt" AS deleted_at, a."createdAt" AS created_at,
-                      a."fileCreatedAt" AS file_created_at, a.duration,
+                      a."fileCreatedAt" AS file_created_at, CAST(a.duration AS TEXT) AS duration,
                       a."livePhotoVideoId" AS live_photo_video_id, a.thumbhash,
                       COALESCE(e."exifImageWidth", 1) AS width,
                       COALESCE(NULLIF(e."exifImageHeight", 0), 1) AS height,
@@ -97,22 +99,22 @@ impl TimelineRepository {
                       e.city, e.country, e.latitude, e.longitude
                FROM asset a
                LEFT JOIN asset_exif e ON e."assetId" = a.id
-               WHERE a."ownerId" = ANY($1)
-                 AND date_trunc('month', a."localDateTime")::date = $2
-                 AND ($3::uuid IS NULL OR EXISTS (
+               WHERE a."ownerId" = $1
+                 AND substr(a."localDateTime", 1, 7) || '-01' = $2
+                 AND ($3 IS NULL OR EXISTS (
                      SELECT 1 FROM album_asset aa WHERE aa."assetId" = a.id AND aa."albumId" = $3
                  ))
-                 AND ($4::uuid IS NULL OR EXISTS (
+                 AND ($4 IS NULL OR EXISTS (
                      SELECT 1 FROM tag_asset ta WHERE ta."assetId" = a.id AND ta."tagId" = $4
                  ))
-                 AND ($5::bool IS NULL OR a."isFavorite" = $5)
-                 AND ((NOT $6::bool AND a."deletedAt" IS NULL) OR ($6::bool AND a."deletedAt" IS NOT NULL))
-                 AND (($7::text IS NOT NULL AND a.visibility = $7) OR ($7::text IS NULL AND a.visibility = 'timeline'))
+                 AND ($5 IS NULL OR a."isFavorite" = $5)
+                 AND (($6 = 0 AND a."deletedAt" IS NULL) OR ($6 = 1 AND a."deletedAt" IS NOT NULL))
+                 AND (($7 IS NOT NULL AND a.visibility = $7) OR ($7 IS NULL AND a.visibility = 'timeline'))
                ORDER BY a."localDateTime" {order}, a.id"#,
         );
         let rows = sqlx::query_as::<_, TimelineAssetRow>(&sql)
-            .bind(&query.user_ids)
-            .bind(bucket_date)
+            .bind(owner_id)
+            .bind(bucket)
             .bind(query.album_id)
             .bind(query.tag_id)
             .bind(query.is_favorite)
@@ -225,6 +227,9 @@ fn iso(dt: chrono::DateTime<chrono::Utc>) -> String {
 
 fn duration_millis(value: Option<&str>) -> Option<i64> {
     let value = value?;
+    if let Ok(millis) = value.parse::<i64>() {
+        return Some(millis);
+    }
     let mut parts = value.split(':');
     let hours = parts.next()?.parse::<i64>().ok()?;
     let minutes = parts.next()?.parse::<i64>().ok()?;
@@ -247,6 +252,7 @@ mod tests {
     fn duration_millis_converts_immich_duration_strings() {
         assert_eq!(duration_millis(Some("00:00:01.500")), Some(1500));
         assert_eq!(duration_millis(Some("01:02:03.004")), Some(3_723_004));
+        assert_eq!(duration_millis(Some("2501")), Some(2501));
         assert_eq!(duration_millis(None), None);
         assert_eq!(duration_millis(Some("bad")), None);
     }

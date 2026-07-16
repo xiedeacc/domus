@@ -238,7 +238,7 @@ impl AuthService {
         base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
     }
 
-    fn hash_token(token: &str) -> String {
-        hex::encode(Sha256::digest(token.as_bytes()))
+    fn hash_token(token: &str) -> Vec<u8> {
+        Sha256::digest(token.as_bytes()).to_vec()
     }
 }

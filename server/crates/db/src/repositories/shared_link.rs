@@ -1,8 +1,9 @@
 use super::db_err;
 use crate::entities::SharedLink;
+use crate::PgPool;
 use domus_common::types::SharedLinkType;
 use domus_common::Result;
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -158,15 +159,19 @@ impl SharedLinkRepository {
     }
 
     pub async fn remove_assets(&self, id: Uuid, asset_ids: &[Uuid]) -> Result<()> {
-        sqlx::query(
-            r#"DELETE FROM shared_link_asset
-               WHERE "sharedLinkId" = $1 AND "assetId" = ANY($2)"#,
-        )
-        .bind(id)
-        .bind(asset_ids)
-        .execute(&self.pool)
-        .await
-        .map_err(db_err)?;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for asset_id in asset_ids {
+            sqlx::query(
+                r#"DELETE FROM shared_link_asset
+                   WHERE "sharedLinkId" = $1 AND "assetId" = $2"#,
+            )
+            .bind(id)
+            .bind(asset_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
@@ -196,7 +201,7 @@ const SHARED_LINK_LIST_SQL: &str = r#"SELECT id, "userId", key, slug, type, "alb
        description, password, "allowUpload", "allowDownload", "showExif", "expiresAt", "createdAt"
 FROM shared_link WHERE "userId" = $1 ORDER BY "createdAt" DESC"#;
 
-fn shared_link_from_row(row: &sqlx::postgres::PgRow) -> Result<SharedLink> {
+fn shared_link_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<SharedLink> {
     Ok(SharedLink {
         id: row.try_get("id").map_err(db_err)?,
         user_id: row.try_get("userId").map_err(db_err)?,

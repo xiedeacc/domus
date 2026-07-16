@@ -1,7 +1,7 @@
 use super::db_err;
 use crate::entities::Partner;
+use crate::PgPool;
 use domus_common::{Error, Result};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]

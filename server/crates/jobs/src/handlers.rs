@@ -56,10 +56,10 @@ async fn metadata_extraction(ctx: &JobContext, job: &JobData) -> Result<()> {
             exif_row.exif_image_width = (info.width > 0).then_some(info.width);
             exif_row.exif_image_height = (info.height > 0).then_some(info.height);
             exif_row.fps = info.fps;
-            let duration = duration_string(info.duration_seconds);
+            let duration = duration_millis(info.duration_seconds);
             ctx.repos
                 .asset
-                .update_duration(asset_id, Some(&duration))
+                .update_duration(asset_id, Some(duration))
                 .await?;
         }
     } else if let Ok(data) = exif::extract(&original).await {
@@ -214,12 +214,6 @@ fn parse_exif_datetime(value: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         })
 }
 
-fn duration_string(seconds: f64) -> String {
-    let millis = (seconds * 1000.0).round().max(0.0) as i64;
-    let total_seconds = millis / 1000;
-    let ms = millis % 1000;
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}.{ms:03}")
+fn duration_millis(seconds: f64) -> i32 {
+    (seconds * 1000.0).round().max(0.0).min(i32::MAX as f64) as i32
 }

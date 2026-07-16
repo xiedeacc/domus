@@ -1,7 +1,7 @@
 use super::db_err;
 use crate::entities::Tag;
+use crate::PgPool;
 use domus_common::{Error, Result};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -48,7 +48,7 @@ impl TagRepository {
             r#"INSERT INTO tag ("userId", value, "parentId")
                VALUES ($1, $2, $3)
                ON CONFLICT ("userId", value) DO UPDATE
-               SET "parentId" = COALESCE(tag."parentId", EXCLUDED."parentId"), "updatedAt" = now()
+               SET "parentId" = COALESCE(tag."parentId", EXCLUDED."parentId"), "updatedAt" = datetime('now')
                RETURNING id, "userId" AS user_id, value, color, "parentId" AS parent_id,
                          "createdAt" AS created_at, "updatedAt" AS updated_at"#,
         )
@@ -89,33 +89,44 @@ impl TagRepository {
     }
 
     pub async fn tag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<u64> {
-        let result = sqlx::query(
-            r#"INSERT INTO tag_asset ("tagId", "assetId")
-               SELECT $1, unnest($2::uuid[])
-               ON CONFLICT DO NOTHING"#,
-        )
-        .bind(tag_id)
-        .bind(asset_ids)
-        .execute(&self.pool)
-        .await
-        .map_err(db_err)?;
-        Ok(result.rows_affected())
+        let mut changed = 0;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for asset_id in asset_ids {
+            let result = sqlx::query(
+                r#"INSERT INTO tag_asset ("tagId", "assetId")
+                   VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
+            )
+            .bind(tag_id)
+            .bind(asset_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+            changed += result.rows_affected();
+        }
+        tx.commit().await.map_err(db_err)?;
+        Ok(changed)
     }
 
     pub async fn untag_assets(&self, tag_id: Uuid, asset_ids: &[Uuid]) -> Result<u64> {
-        let result =
-            sqlx::query(r#"DELETE FROM tag_asset WHERE "tagId" = $1 AND "assetId" = ANY($2)"#)
-                .bind(tag_id)
-                .bind(asset_ids)
-                .execute(&self.pool)
-                .await
-                .map_err(db_err)?;
-        Ok(result.rows_affected())
+        let mut changed = 0;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for asset_id in asset_ids {
+            let result =
+                sqlx::query(r#"DELETE FROM tag_asset WHERE "tagId" = $1 AND "assetId" = $2"#)
+                    .bind(tag_id)
+                    .bind(asset_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db_err)?;
+            changed += result.rows_affected();
+        }
+        tx.commit().await.map_err(db_err)?;
+        Ok(changed)
     }
 
     pub async fn update_color(&self, id: Uuid, color: Option<&str>) -> Result<Tag> {
         sqlx::query_as::<_, Tag>(
-            r#"UPDATE tag SET color = $2, "updatedAt" = now() WHERE id = $1
+            r#"UPDATE tag SET color = $2, "updatedAt" = datetime('now') WHERE id = $1
                RETURNING id, "userId" AS user_id, value, color, "parentId" AS parent_id,
                          "createdAt" AS created_at, "updatedAt" AS updated_at"#,
         )

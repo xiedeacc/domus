@@ -1,4 +1,4 @@
-name: domus_app
+name: domus
 description: "Domus — Immich-compatible photo library client for web, Android and iOS."
 publish_to: 'none'
 

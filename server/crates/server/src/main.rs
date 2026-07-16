@@ -29,7 +29,8 @@ async fn main() -> anyhow::Result<()> {
     let pool = domus_db::connect(&config).await?;
     let repos = domus_db::Repositories::new(pool.clone());
     let queue = PgJobQueue::new(pool);
-    let storage = StorageCore::new(&config.media_location);
+    let storage = StorageCore::new(&config.media_location)
+        .with_original_media_location(config.original_media_location.as_deref());
 
     if config.workers.microservices {
         let context = Arc::new(JobContext {

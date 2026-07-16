@@ -150,12 +150,18 @@ impl AssetMediaService {
     /// Path of the original file for GET /assets/:id/original.
     pub async fn original_path(&self, asset_id: Uuid) -> Result<PathBuf> {
         let asset = self.repos.asset.get(asset_id).await?;
-        Ok(PathBuf::from(asset.original_path))
+        Ok(self.storage.resolve_existing_path(asset.original_path))
     }
 
     /// Path of preview/thumbnail for GET /assets/:id/thumbnail?size=...
     pub async fn thumbnail_path(&self, asset_id: Uuid, size: &str) -> Result<PathBuf> {
         let asset = self.repos.asset.get(asset_id).await?;
+        if let Some(path) = self.repos.asset.asset_file_path(asset_id, size).await? {
+            let path = self.storage.resolve_existing_path(path);
+            if tokio::fs::metadata(&path).await.is_ok() {
+                return Ok(path);
+            }
+        }
         let path = match size {
             "preview" | "fullsize" => self.storage.preview_path(asset.owner_id, asset.id),
             _ => self.storage.thumbnail_path(asset.owner_id, asset.id),
@@ -163,18 +169,29 @@ impl AssetMediaService {
         if tokio::fs::metadata(&path).await.is_ok() {
             return Ok(path);
         }
-        Ok(PathBuf::from(asset.original_path))
+        Ok(self.storage.resolve_existing_path(asset.original_path))
     }
 
     /// Path of the playback file (encoded video if present, else original)
     /// for GET /assets/:id/video/playback.
     pub async fn playback_path(&self, asset_id: Uuid) -> Result<PathBuf> {
         let asset = self.repos.asset.get(asset_id).await?;
+        if let Some(path) = self
+            .repos
+            .asset
+            .asset_file_path(asset_id, "encoded-video")
+            .await?
+        {
+            let path = self.storage.resolve_existing_path(path);
+            if tokio::fs::metadata(&path).await.is_ok() {
+                return Ok(path);
+            }
+        }
         let encoded = self.storage.encoded_video_path(asset.owner_id, asset.id);
         if tokio::fs::metadata(&encoded).await.is_ok() {
             return Ok(encoded);
         }
-        Ok(PathBuf::from(asset.original_path))
+        Ok(self.storage.resolve_existing_path(asset.original_path))
     }
 
     /// POST /assets/exist + POST /assets/bulk-upload-check support.

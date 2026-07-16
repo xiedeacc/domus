@@ -1,10 +1,9 @@
-//! PostgreSQL-backed job queue. Claims use `FOR UPDATE SKIP LOCKED` so any
-//! number of worker processes can share one table safely.
+//! SQLite-backed job queue for Domus' single-binary deployment.
 
 use crate::types::{JobName, QueueName};
 use domus_common::{Error, Result};
+use domus_db::PgPool;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,13 +48,12 @@ impl PgJobQueue {
         let queue = queue_name(queue)?;
         let row = sqlx::query_as::<_, JobRow>(
             r#"UPDATE job
-               SET status = 'active', attempts = attempts + 1, "updatedAt" = now()
+               SET status = 'active', attempts = attempts + 1, "updatedAt" = datetime('now')
                WHERE id = (
                    SELECT id FROM job
-                   WHERE queue = $1 AND status = 'waiting' AND "runAt" <= now()
+                   WHERE queue = $1 AND status = 'waiting' AND "runAt" <= datetime('now')
                    ORDER BY "createdAt"
                    LIMIT 1
-                   FOR UPDATE SKIP LOCKED
                )
                RETURNING id, name, payload, attempts"#,
         )
@@ -67,11 +65,13 @@ impl PgJobQueue {
     }
 
     pub async fn complete(&self, id: Uuid) -> Result<()> {
-        sqlx::query(r#"UPDATE job SET status = 'completed', "updatedAt" = now() WHERE id = $1"#)
-            .bind(id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+        sqlx::query(
+            r#"UPDATE job SET status = 'completed', "updatedAt" = datetime('now') WHERE id = $1"#,
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
         Ok(())
     }
 
@@ -83,9 +83,9 @@ impl PgJobQueue {
                    error = $2,
                    "runAt" = CASE
                        WHEN attempts >= "maxAttempts" THEN "runAt"
-                       ELSE now() + make_interval(secs => LEAST(300, GREATEST(5, attempts * attempts * 5)))
+                       ELSE datetime('now', '+' || min(300, max(5, attempts * attempts * 5)) || ' seconds')
                    END,
-                   "updatedAt" = now()
+                   "updatedAt" = datetime('now')
                WHERE id = $1"#,
         )
         .bind(id)
@@ -100,13 +100,12 @@ impl PgJobQueue {
     /// /queues admin API.
     pub async fn counts(&self, queue: QueueName) -> Result<serde_json::Value> {
         let queue = queue_name(queue)?;
-        let rows: Vec<(String, i64)> = sqlx::query_as(
-            r#"SELECT status, COUNT(*)::bigint FROM job WHERE queue = $1 GROUP BY status"#,
-        )
-        .bind(queue)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_err)?;
+        let rows: Vec<(String, i64)> =
+            sqlx::query_as(r#"SELECT status, COUNT(*) FROM job WHERE queue = $1 GROUP BY status"#)
+                .bind(queue)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(db_err)?;
         let mut value = serde_json::json!({
             "waiting": 0,
             "active": 0,
@@ -129,7 +128,7 @@ impl PgJobQueue {
             ("paused", "waiting")
         };
         sqlx::query(
-            r#"UPDATE job SET status = $1, "updatedAt" = now() WHERE queue = $2 AND status = $3"#,
+            r#"UPDATE job SET status = $1, "updatedAt" = datetime('now') WHERE queue = $2 AND status = $3"#,
         )
         .bind(to)
         .bind(queue)
@@ -147,12 +146,14 @@ impl PgJobQueue {
         } else {
             &["waiting", "completed", "failed", "delayed", "paused"]
         };
-        sqlx::query(r#"DELETE FROM job WHERE queue = $1 AND status = ANY($2)"#)
-            .bind(queue)
-            .bind(statuses)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+        for status in statuses {
+            sqlx::query(r#"DELETE FROM job WHERE queue = $1 AND status = $2"#)
+                .bind(&queue)
+                .bind(status)
+                .execute(&self.pool)
+                .await
+                .map_err(db_err)?;
+        }
         Ok(())
     }
 }

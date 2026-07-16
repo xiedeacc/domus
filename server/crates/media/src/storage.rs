@@ -40,13 +40,23 @@ impl StorageFolder {
 #[derive(Clone)]
 pub struct StorageCore {
     media_root: PathBuf,
+    original_media_root: Option<PathBuf>,
 }
 
 impl StorageCore {
     pub fn new(media_root: impl Into<PathBuf>) -> Self {
         Self {
             media_root: media_root.into(),
+            original_media_root: None,
         }
+    }
+
+    pub fn with_original_media_location(
+        mut self,
+        original_media_root: Option<impl Into<PathBuf>>,
+    ) -> Self {
+        self.original_media_root = original_media_root.map(Into::into);
+        self
     }
 
     pub fn folder(&self, folder: StorageFolder) -> PathBuf {
@@ -135,6 +145,16 @@ impl StorageCore {
         &self.media_root
     }
 
+    pub fn resolve_existing_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        let path = path.as_ref();
+        if let Some(original_root) = &self.original_media_root {
+            if let Ok(relative) = path.strip_prefix(original_root) {
+                return self.media_root.join(relative);
+            }
+        }
+        path.to_path_buf()
+    }
+
     pub fn is_immich_path(&self, path: impl AsRef<Path>) -> bool {
         let media_root = normalize_for_prefix(&self.media_root);
         let path = normalize_for_prefix(path.as_ref());
@@ -189,6 +209,19 @@ mod tests {
         assert_eq!(
             path.to_string_lossy(),
             "/photos/library/label_with_bad/2026/07/14/IMG_0001-10000000-0000-0000-0000-000000000000.jpg"
+        );
+    }
+
+    #[test]
+    fn resolve_existing_path_rewrites_native_immich_root() {
+        let storage = StorageCore::new("/opt/usr/local/domus/data/upload")
+            .with_original_media_location(Some("/opt/immich/upload"));
+
+        assert_eq!(
+            storage
+                .resolve_existing_path("/opt/immich/upload/thumbs/u/aa/bb/file.webp")
+                .to_string_lossy(),
+            "/opt/usr/local/domus/data/upload/thumbs/u/aa/bb/file.webp"
         );
     }
 }

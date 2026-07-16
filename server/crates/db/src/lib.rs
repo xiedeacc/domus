@@ -1,25 +1,104 @@
-//! Data access layer: PostgreSQL pool, migrations and one repository module
-//! per aggregate. Repositories expose typed methods; SQL lives here only.
+//! Data access layer: SQLite pool, migrations and one repository module per
+//! aggregate. Repositories expose typed methods; SQL lives here only.
 
 pub mod entities;
 pub mod repositories;
 
 use domus_common::{Config, Error, Result};
-use sqlx::postgres::PgPoolOptions;
-pub use sqlx::PgPool;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+pub use sqlx::SqlitePool as PgPool;
+use std::str::FromStr;
 
-/// Connect to PostgreSQL and run pending migrations.
+/// Connect to SQLite and run pending migrations when explicitly requested.
 pub async fn connect(config: &Config) -> Result<PgPool> {
-    let pool = PgPoolOptions::new()
+    let options = SqliteConnectOptions::from_str(&config.database.url)
+        .map_err(|e| Error::Database(e.to_string()))?
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .foreign_keys(false);
+    let pool = SqlitePoolOptions::new()
         .max_connections(config.database.max_connections)
-        .connect(&config.database.url)
+        .connect_with(options)
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .map_err(|e| Error::Database(e.to_string()))?;
+    if config.database.run_migrations {
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+    } else {
+        ensure_runtime_tables(&pool).await?;
+    }
     Ok(pool)
+}
+
+async fn ensure_runtime_tables(pool: &PgPool) -> Result<()> {
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS "job" (
+            "id" text PRIMARY KEY DEFAULT (
+                lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+                substr(lower(hex(randomblob(2))), 2) || '-' ||
+                substr('89ab', abs(random()) % 4 + 1, 1) ||
+                substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))
+            ),
+            "queue" varchar NOT NULL,
+            "name" varchar NOT NULL,
+            "payload" text NOT NULL DEFAULT '{}',
+            "status" varchar NOT NULL DEFAULT 'waiting',
+            "attempts" integer NOT NULL DEFAULT 0,
+            "maxAttempts" integer NOT NULL DEFAULT 3,
+            "error" text,
+            "runAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "createdAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    sqlx::query(
+        r#"CREATE INDEX IF NOT EXISTS "IDX_job_claim" ON "job" ("queue", "status", "runAt")"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS "asset_job_status" (
+            "assetId" text PRIMARY KEY,
+            "metadataExtractedAt" text,
+            "previewAt" text,
+            "thumbnailAt" text
+        )"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS "tag" (
+            "id" blob PRIMARY KEY,
+            "userId" blob NOT NULL,
+            "value" text NOT NULL,
+            "color" text,
+            "parentId" blob,
+            "createdAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" text NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS "tag_asset" (
+            "tagId" blob NOT NULL,
+            "assetId" blob NOT NULL,
+            PRIMARY KEY ("tagId", "assetId")
+        )"#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| Error::Database(e.to_string()))?;
+    Ok(())
 }
 
 /// Bundle of all repositories, cloned cheaply (each holds the shared pool).

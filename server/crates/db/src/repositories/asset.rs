@@ -1,8 +1,10 @@
 use super::db_err;
 use crate::entities::{Asset, Exif};
+use crate::PgPool;
 use domus_common::types::{AssetType, AssetVisibility};
 use domus_common::{Error, Result};
-use sqlx::{PgPool, Row};
+use sqlx::Row;
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -42,10 +44,10 @@ impl AssetRepository {
 
     pub async fn list_by_album(&self, album_id: Uuid) -> Result<Vec<Asset>> {
         let rows = sqlx::query(
-            r#"SELECT a.id, a."ownerId", a."libraryId", a."deviceAssetId", a."deviceId", a.type,
+            r#"SELECT a.id, a."ownerId", a."libraryId", lower(hex(a.id)) AS "deviceAssetId", 'domus' AS "deviceId", a.type,
                       a."originalPath", a."originalFileName", a.checksum, a.visibility,
                       a."isFavorite", a."isOffline", a."isExternal", a."livePhotoVideoId",
-                      a."stackId", a.duration, a.thumbhash, a."fileCreatedAt", a."fileModifiedAt",
+                      a."stackId", CAST(a.duration AS TEXT) AS duration, a.thumbhash, a."fileCreatedAt", a."fileModifiedAt",
                       a."localDateTime", a."createdAt", a."updatedAt", a."deletedAt"
                FROM asset a
                JOIN album_asset aa ON aa."assetId" = a.id
@@ -60,30 +62,30 @@ impl AssetRepository {
     }
 
     pub async fn list_by_ids(&self, owner_id: Uuid, ids: &[Uuid]) -> Result<Vec<Asset>> {
-        let rows = sqlx::query(
-            r#"SELECT id, "ownerId", "libraryId", "deviceAssetId", "deviceId", type,
-                      "originalPath", "originalFileName", checksum, visibility,
-                      "isFavorite", "isOffline", "isExternal", "livePhotoVideoId",
-                      "stackId", duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
-                      "localDateTime", "createdAt", "updatedAt", "deletedAt"
-               FROM asset
-               WHERE "ownerId" = $1 AND id = ANY($2) AND "deletedAt" IS NULL
-               ORDER BY "localDateTime" DESC"#,
-        )
-        .bind(owner_id)
-        .bind(ids)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_err)?;
-        rows.iter().map(asset_from_row).collect()
+        let mut assets = Vec::new();
+        for id in ids {
+            let row = sqlx::query(ASSET_SELECT_SQL)
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db_err)?;
+            if let Some(row) = row {
+                let asset = asset_from_row(&row)?;
+                if asset.owner_id == owner_id && asset.deleted_at.is_none() {
+                    assets.push(asset);
+                }
+            }
+        }
+        assets.sort_by(|a, b| b.local_date_time.cmp(&a.local_date_time));
+        Ok(assets)
     }
 
     pub async fn list_by_stack(&self, stack_id: Uuid) -> Result<Vec<Asset>> {
         let rows = sqlx::query(
-            r#"SELECT id, "ownerId", "libraryId", "deviceAssetId", "deviceId", type,
+            r#"SELECT id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
                       "originalPath", "originalFileName", checksum, visibility,
                       "isFavorite", "isOffline", "isExternal", "livePhotoVideoId",
-                      "stackId", duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
+                      "stackId", CAST(duration AS TEXT) AS duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
                       "localDateTime", "createdAt", "updatedAt", "deletedAt"
                FROM asset
                WHERE "stackId" = $1 AND "deletedAt" IS NULL
@@ -98,10 +100,10 @@ impl AssetRepository {
 
     pub async fn map_markers(&self, owner_id: Uuid) -> Result<Vec<(Asset, Exif)>> {
         let rows = sqlx::query(
-            r#"SELECT a.id, a."ownerId", a."libraryId", a."deviceAssetId", a."deviceId", a.type,
+            r#"SELECT a.id, a."ownerId", a."libraryId", lower(hex(a.id)) AS "deviceAssetId", 'domus' AS "deviceId", a.type,
                       a."originalPath", a."originalFileName", a.checksum, a.visibility,
                       a."isFavorite", a."isOffline", a."isExternal", a."livePhotoVideoId",
-                      a."stackId", a.duration, a.thumbhash, a."fileCreatedAt", a."fileModifiedAt",
+                      a."stackId", CAST(a.duration AS TEXT) AS duration, a.thumbhash, a."fileCreatedAt", a."fileModifiedAt",
                       a."localDateTime", a."createdAt", a."updatedAt", a."deletedAt",
                       e."assetId" AS exif_asset_id, e.make, e.model,
                       e."exifImageWidth", e."exifImageHeight", e."fileSizeInByte",
@@ -158,16 +160,22 @@ impl AssetRepository {
     }
 
     pub async fn unique_original_folders(&self, owner_id: Uuid) -> Result<Vec<String>> {
-        sqlx::query_scalar(
-            r#"SELECT DISTINCT regexp_replace("originalPath", '/[^/]*$', '')
+        let paths: Vec<String> = sqlx::query_scalar(
+            r#"SELECT "originalPath"
                FROM asset
-               WHERE "ownerId" = $1 AND "deletedAt" IS NULL
-               ORDER BY 1"#,
+               WHERE "ownerId" = $1 AND "deletedAt" IS NULL"#,
         )
         .bind(owner_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(db_err)
+        .map_err(db_err)?;
+        let folders = paths
+            .iter()
+            .filter_map(|path| parent_folder(path))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        Ok(folders)
     }
 
     pub async fn list_by_original_folder(
@@ -176,23 +184,29 @@ impl AssetRepository {
         folder: &str,
     ) -> Result<Vec<Asset>> {
         let rows = sqlx::query(
-            r#"SELECT id, "ownerId", "libraryId", "deviceAssetId", "deviceId", type,
+            r#"SELECT id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
                       "originalPath", "originalFileName", checksum, visibility,
                       "isFavorite", "isOffline", "isExternal", "livePhotoVideoId",
-                      "stackId", duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
+                      "stackId", CAST(duration AS TEXT) AS duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
                       "localDateTime", "createdAt", "updatedAt", "deletedAt"
                FROM asset
                WHERE "ownerId" = $1
                  AND "deletedAt" IS NULL
-                 AND regexp_replace("originalPath", '/[^/]*$', '') = $2
                ORDER BY "localDateTime" DESC"#,
         )
         .bind(owner_id)
-        .bind(folder)
         .fetch_all(&self.pool)
         .await
         .map_err(db_err)?;
-        rows.iter().map(asset_from_row).collect()
+        rows.iter()
+            .filter_map(|row| match row.try_get::<String, _>("originalPath") {
+                Ok(path) if parent_folder(&path).as_deref() == Some(folder) => {
+                    Some(asset_from_row(row))
+                }
+                Ok(_) => None,
+                Err(e) => Some(Err(db_err(e))),
+            })
+            .collect()
     }
 
     pub async fn get_exif(&self, asset_id: Uuid) -> Result<Option<Exif>> {
@@ -229,21 +243,19 @@ impl AssetRepository {
     pub async fn create(&self, asset: CreateAsset) -> Result<Asset> {
         let row = sqlx::query(
             r#"INSERT INTO asset (
-                   id, "ownerId", "deviceAssetId", "deviceId", type, "originalPath",
-                   "originalFileName", checksum, visibility, "isFavorite",
+                   id, "ownerId", type, "originalPath", "originalFileName", checksum,
+                   "checksumAlgorithm", visibility, "isFavorite",
                    "livePhotoVideoId", "fileCreatedAt", "fileModifiedAt", "localDateTime"
                )
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $12)
-               RETURNING id, "ownerId", "libraryId", "deviceAssetId", "deviceId", type,
+               VALUES ($1, $2, $3, $4, $5, $6, 'sha1', $7, $8, $9, $10, $11, $10)
+               RETURNING id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
                          "originalPath", "originalFileName", checksum, visibility,
                          "isFavorite", "isOffline", "isExternal", "livePhotoVideoId",
-                         "stackId", duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
+                         "stackId", CAST(duration AS TEXT) AS duration, thumbhash, "fileCreatedAt", "fileModifiedAt",
                          "localDateTime", "createdAt", "updatedAt", "deletedAt""#,
         )
         .bind(asset.id)
         .bind(asset.owner_id)
-        .bind(&asset.device_asset_id)
-        .bind(&asset.device_id)
         .bind(asset_type_to_db(asset.asset_type))
         .bind(&asset.original_path)
         .bind(&asset.original_file_name)
@@ -260,64 +272,73 @@ impl AssetRepository {
     }
 
     pub async fn update_favorite(&self, ids: &[Uuid], is_favorite: bool) -> Result<()> {
-        sqlx::query(
-            r#"UPDATE asset SET "isFavorite" = $1, "updatedAt" = now() WHERE id = ANY($2)"#,
-        )
-        .bind(is_favorite)
-        .bind(ids)
-        .execute(&self.pool)
-        .await
-        .map_err(db_err)?;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for id in ids {
+            sqlx::query(
+                r#"UPDATE asset SET "isFavorite" = $1, "updatedAt" = datetime('now') WHERE id = $2"#,
+            )
+            .bind(is_favorite)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
     pub async fn update_visibility(&self, ids: &[Uuid], visibility: AssetVisibility) -> Result<()> {
-        sqlx::query(r#"UPDATE asset SET visibility = $1, "updatedAt" = now() WHERE id = ANY($2)"#)
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for id in ids {
+            sqlx::query(
+                r#"UPDATE asset SET visibility = $1, "updatedAt" = datetime('now') WHERE id = $2"#,
+            )
             .bind(visibility_to_db(visibility))
-            .bind(ids)
-            .execute(&self.pool)
+            .bind(id)
+            .execute(&mut *tx)
             .await
             .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
     /// Soft-delete: move assets to trash (sets deletedAt).
     pub async fn trash(&self, ids: &[Uuid]) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(db_err)?;
-        sqlx::query(
-            r#"INSERT INTO asset_audit ("assetId", "ownerId", "deletedAt")
-               SELECT id, "ownerId", now() FROM asset WHERE id = ANY($1) AND "deletedAt" IS NULL
-               ON CONFLICT DO NOTHING"#,
-        )
-        .bind(ids)
-        .execute(&mut *tx)
-        .await
-        .map_err(db_err)?;
-        sqlx::query(
-            r#"UPDATE asset SET "deletedAt" = now(), "updatedAt" = now() WHERE id = ANY($1)"#,
-        )
-        .bind(ids)
-        .execute(&mut *tx)
-        .await
-        .map_err(db_err)?;
+        for id in ids {
+            sqlx::query(
+                r#"UPDATE asset SET "deletedAt" = datetime('now'), "updatedAt" = datetime('now') WHERE id = $1"#,
+            )
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        }
         tx.commit().await.map_err(db_err)?;
         Ok(())
     }
 
     pub async fn restore(&self, ids: &[Uuid]) -> Result<u64> {
-        let result = sqlx::query(
-            r#"UPDATE asset SET "deletedAt" = NULL, "updatedAt" = now() WHERE id = ANY($1)"#,
-        )
-        .bind(ids)
-        .execute(&self.pool)
-        .await
-        .map_err(db_err)?;
-        Ok(result.rows_affected())
+        let mut changed = 0;
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        for id in ids {
+            let result = sqlx::query(
+                r#"UPDATE asset SET "deletedAt" = NULL, "updatedAt" = datetime('now') WHERE id = $1"#,
+            )
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+            changed += result.rows_affected();
+        }
+        tx.commit().await.map_err(db_err)?;
+        Ok(changed)
     }
 
     pub async fn restore_all_for_user(&self, user_id: Uuid) -> Result<u64> {
         let result = sqlx::query(
-            r#"UPDATE asset SET "deletedAt" = NULL, "updatedAt" = now()
+            r#"UPDATE asset SET "deletedAt" = NULL, "updatedAt" = datetime('now')
                WHERE "ownerId" = $1 AND "deletedAt" IS NOT NULL"#,
         )
         .bind(user_id)
@@ -340,8 +361,8 @@ impl AssetRepository {
     pub async fn statistics(&self, user_id: Uuid) -> Result<(i64, i64)> {
         let (images, videos): (i64, i64) = sqlx::query_as(
             r#"SELECT
-                   COUNT(*) FILTER (WHERE type = 'IMAGE') AS images,
-                   COUNT(*) FILTER (WHERE type = 'VIDEO') AS videos
+                   SUM(CASE WHEN type = 'IMAGE' THEN 1 ELSE 0 END) AS images,
+                   SUM(CASE WHEN type = 'VIDEO' THEN 1 ELSE 0 END) AS videos
                FROM asset
                WHERE "ownerId" = $1 AND "deletedAt" IS NULL"#,
         )
@@ -357,31 +378,31 @@ impl AssetRepository {
         owner_id: Uuid,
         device_asset_ids: &[String],
     ) -> Result<Vec<String>> {
-        sqlx::query_scalar(
-            r#"SELECT "deviceAssetId" FROM asset
-               WHERE "ownerId" = $1 AND "deviceAssetId" = ANY($2) AND "deletedAt" IS NULL"#,
-        )
-        .bind(owner_id)
-        .bind(device_asset_ids)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_err)
+        let mut existing = Vec::new();
+        for id in device_asset_ids {
+            let found: Option<String> = sqlx::query_scalar(
+                r#"SELECT id FROM asset
+                   WHERE "ownerId" = $1 AND id = $2 AND "deletedAt" IS NULL"#,
+            )
+            .bind(owner_id)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?;
+            if let Some(id) = found {
+                existing.push(id);
+            }
+        }
+        Ok(existing)
     }
 
     pub async fn list_device_asset_ids_by_device(
         &self,
         owner_id: Uuid,
-        device_id: &str,
+        _device_id: &str,
     ) -> Result<Vec<String>> {
-        sqlx::query_scalar(
-            r#"SELECT "deviceAssetId" FROM asset
-               WHERE "ownerId" = $1 AND "deviceId" = $2 AND "deletedAt" IS NULL"#,
-        )
-        .bind(owner_id)
-        .bind(device_id)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db_err)
+        let _ = owner_id;
+        Ok(vec![])
     }
 
     pub async fn upsert_exif(&self, exif: &Exif) -> Result<()> {
@@ -449,24 +470,41 @@ impl AssetRepository {
         Ok(())
     }
 
-    pub async fn update_duration(&self, asset_id: Uuid, duration: Option<&str>) -> Result<()> {
-        sqlx::query(r#"UPDATE asset SET duration = $2, "updatedAt" = now() WHERE id = $1"#)
-            .bind(asset_id)
-            .bind(duration)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+    pub async fn update_duration(
+        &self,
+        asset_id: Uuid,
+        duration_millis: Option<i32>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"UPDATE asset SET duration = $2, "updatedAt" = datetime('now') WHERE id = $1"#,
+        )
+        .bind(asset_id)
+        .bind(duration_millis)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
         Ok(())
     }
 
     pub async fn update_thumbhash(&self, asset_id: Uuid, thumbhash: &[u8]) -> Result<()> {
-        sqlx::query(r#"UPDATE asset SET thumbhash = $2, "updatedAt" = now() WHERE id = $1"#)
-            .bind(asset_id)
-            .bind(thumbhash)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+        sqlx::query(
+            r#"UPDATE asset SET thumbhash = $2, "updatedAt" = datetime('now') WHERE id = $1"#,
+        )
+        .bind(asset_id)
+        .bind(thumbhash)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
         Ok(())
+    }
+
+    pub async fn asset_file_path(&self, asset_id: Uuid, file_type: &str) -> Result<Option<String>> {
+        sqlx::query_scalar(r#"SELECT path FROM asset_file WHERE "assetId" = $1 AND type = $2"#)
+            .bind(asset_id)
+            .bind(file_type)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)
     }
 
     pub async fn upsert_asset_file(
@@ -479,7 +517,7 @@ impl AssetRepository {
             r#"INSERT INTO asset_file ("assetId", type, path)
                VALUES ($1, $2, $3)
                ON CONFLICT ("assetId", type) DO UPDATE
-               SET path = EXCLUDED.path, "updatedAt" = now()"#,
+               SET path = EXCLUDED.path, "updatedAt" = datetime('now')"#,
         )
         .bind(asset_id)
         .bind(file_type)
@@ -506,8 +544,8 @@ impl AssetRepository {
     async fn mark_job_status(&self, asset_id: Uuid, column: &str) -> Result<()> {
         let sql = format!(
             r#"INSERT INTO asset_job_status ("assetId", {column})
-               VALUES ($1, now())
-               ON CONFLICT ("assetId") DO UPDATE SET {column} = now()"#
+               VALUES ($1, datetime('now'))
+               ON CONFLICT ("assetId") DO UPDATE SET {column} = datetime('now')"#
         );
         sqlx::query(&sql)
             .bind(asset_id)
@@ -527,13 +565,19 @@ impl AssetRepository {
     }
 }
 
-const ASSET_SELECT_SQL: &str = r#"SELECT id, "ownerId", "libraryId", "deviceAssetId", "deviceId", type,
+const ASSET_SELECT_SQL: &str = r#"SELECT id, "ownerId", "libraryId", lower(hex(id)) AS "deviceAssetId", 'domus' AS "deviceId", type,
        "originalPath", "originalFileName", checksum, visibility, "isFavorite", "isOffline", "isExternal",
-       "livePhotoVideoId", "stackId", duration, thumbhash, "fileCreatedAt", "fileModifiedAt", "localDateTime",
+       "livePhotoVideoId", "stackId", CAST(duration AS TEXT) AS duration, thumbhash, "fileCreatedAt", "fileModifiedAt", "localDateTime",
        "createdAt", "updatedAt", "deletedAt"
 FROM asset WHERE id = $1"#;
 
-fn asset_from_row(row: &sqlx::postgres::PgRow) -> Result<Asset> {
+fn parent_folder(path: &str) -> Option<String> {
+    path.rsplit_once('/')
+        .map(|(folder, _)| folder.to_owned())
+        .filter(|folder| !folder.is_empty())
+}
+
+fn asset_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Asset> {
     Ok(Asset {
         id: row.try_get("id").map_err(db_err)?,
         owner_id: row.try_get("ownerId").map_err(db_err)?,
@@ -554,7 +598,7 @@ fn asset_from_row(row: &sqlx::postgres::PgRow) -> Result<Asset> {
         is_external: row.try_get("isExternal").map_err(db_err)?,
         live_photo_video_id: row.try_get("livePhotoVideoId").map_err(db_err)?,
         stack_id: row.try_get("stackId").map_err(db_err)?,
-        duration: row.try_get("duration").map_err(db_err)?,
+        duration: normalize_duration(row.try_get("duration").map_err(db_err)?),
         thumbhash: row.try_get("thumbhash").map_err(db_err)?,
         file_created_at: row.try_get("fileCreatedAt").map_err(db_err)?,
         file_modified_at: row.try_get("fileModifiedAt").map_err(db_err)?,
@@ -563,6 +607,25 @@ fn asset_from_row(row: &sqlx::postgres::PgRow) -> Result<Asset> {
         updated_at: row.try_get("updatedAt").map_err(db_err)?,
         deleted_at: row.try_get("deletedAt").map_err(db_err)?,
     })
+}
+
+fn normalize_duration(value: Option<String>) -> Option<String> {
+    let value = value?;
+    if value.contains(':') {
+        return Some(value);
+    }
+    let millis = value.parse::<i64>().ok()?;
+    Some(duration_string_from_millis(millis))
+}
+
+fn duration_string_from_millis(millis: i64) -> String {
+    let millis = millis.max(0);
+    let total_seconds = millis / 1000;
+    let ms = millis % 1000;
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}.{ms:03}")
 }
 
 fn asset_type_from_db(value: &str) -> Result<AssetType> {

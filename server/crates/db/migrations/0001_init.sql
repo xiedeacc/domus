@@ -30,7 +30,7 @@ CREATE TABLE "user" (
 
 CREATE TABLE "session" (
     "id"         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "token"      varchar NOT NULL,                       -- sha256 hex of bearer token
+    "token"      bytea NOT NULL,                          -- sha256 digest of bearer token
     "userId"     uuid NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
     "deviceType" varchar NOT NULL DEFAULT '',
     "deviceOS"   varchar NOT NULL DEFAULT '',
@@ -43,7 +43,7 @@ CREATE INDEX "IDX_session_token" ON "session" ("token");
 CREATE TABLE "api_key" (
     "id"          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     "name"        varchar NOT NULL,
-    "key"         varchar NOT NULL,                      -- sha256 hex of raw key
+    "key"         bytea NOT NULL,                         -- sha256 digest of raw key
     "userId"      uuid NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
     "permissions" varchar[] NOT NULL DEFAULT '{}',
     "createdAt"   timestamptz NOT NULL DEFAULT now(),
@@ -80,13 +80,14 @@ CREATE TABLE "asset" (
     "originalPath"     varchar NOT NULL,
     "originalFileName" varchar NOT NULL,
     "checksum"         bytea NOT NULL,                   -- sha1
+    "checksumAlgorithm" varchar NOT NULL DEFAULT 'sha1',
     "visibility"       varchar NOT NULL DEFAULT 'timeline',
     "isFavorite"       boolean NOT NULL DEFAULT false,
     "isOffline"        boolean NOT NULL DEFAULT false,
     "isExternal"       boolean NOT NULL DEFAULT false,
     "livePhotoVideoId" uuid REFERENCES "asset" ("id") ON DELETE SET NULL,
     "stackId"          uuid REFERENCES "stack" ("id") ON DELETE SET NULL,
-    "duration"         varchar,
+    "duration"         integer,
     "thumbhash"        bytea,
     "fileCreatedAt"    timestamptz NOT NULL,
     "fileModifiedAt"   timestamptz NOT NULL,
