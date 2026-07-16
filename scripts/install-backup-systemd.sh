@@ -48,7 +48,7 @@ Environment=DOMUS_BACKUP_ROOT=${DEST_DIR}
 Environment=DOMUS_BACKUP_WORK_DIR=${DEST_DIR}/.backup-worktree
 Environment=DOMUS_BACKUP_DB=${DEST_DIR}/data/domus.sqlite3
 Environment=HOME=${DEST_DIR}
-Environment=GIT_SSH_COMMAND=ssh -o IdentitiesOnly=yes -o UserKnownHostsFile=${DEST_DIR}/.ssh/known_hosts -o StrictHostKeyChecking=yes
+Environment="GIT_SSH_COMMAND=ssh -i ${DEST_DIR}/.ssh/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=${DEST_DIR}/.ssh/known_hosts -o StrictHostKeyChecking=yes"
 ExecStart=${DEST_DIR}/bin/domus-backup
 NoNewPrivileges=true
 ProtectSystem=strict
