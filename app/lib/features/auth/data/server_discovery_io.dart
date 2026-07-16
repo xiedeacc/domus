@@ -28,6 +28,11 @@ class ServerDiscovery {
     socket.send(
       utf8.encode('DOMUS_DISCOVER_V1'),
       InternetAddress('255.255.255.255'),
+      2284,
+    );
+    socket.send(
+      utf8.encode('DOMUS_DISCOVER_V1'),
+      InternetAddress('255.255.255.255'),
       43004,
     );
     socket.send(

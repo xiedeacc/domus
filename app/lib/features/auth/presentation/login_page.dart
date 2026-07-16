@@ -18,7 +18,9 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   static const _redirectUri = 'domus://oauth';
 
-  final _serverController = TextEditingController();
+  final _serverController = TextEditingController(
+    text: 'http://192.168.2.247:2284',
+  );
   final _emailController = TextEditingController(text: 'xiedeacc@gmail.com');
   final _passwordController = TextEditingController(text: 'qh6288QHW');
   StreamSubscription<Uri>? _linkSub;
@@ -95,6 +97,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final auth = ref.watch(authStateProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFBFAFF),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -107,27 +110,46 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 Text(
                   'Domus',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineLarge,
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    color: const Color(0xFF202124),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 32),
                 TextField(
                   controller: _serverController,
                   decoration: const InputDecoration(
                     labelText: 'Server URL',
-                    hintText: 'https://photos.example.com',
+                    hintText: 'http://192.168.2.247:2284',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
+                  style: const TextStyle(color: Color(0xFF202124)),
                   keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  style: const TextStyle(color: Color(0xFF202124)),
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  style: const TextStyle(color: Color(0xFF202124)),
                   obscureText: true,
                   onSubmitted: (_) => _submit(),
                 ),

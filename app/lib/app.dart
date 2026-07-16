@@ -14,6 +14,7 @@ class DomusApp extends ConsumerWidget {
       title: 'Domus',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
