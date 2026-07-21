@@ -14,7 +14,8 @@ pub struct Config {
     /// HTTP listen port (Immich default: 2283).
     #[serde(default = "default_port")]
     pub port: u16,
-    /// Machine-learning service listen port (Immich ML default: 3003).
+    /// Machine-learning service listen port. Domus defaults to 3004 so it can
+    /// run alongside the official Immich ML service on 3003.
     #[serde(default = "default_ml_port")]
     pub ml_port: u16,
     /// Root of the media directory (Immich mounts this at /data).
@@ -119,7 +120,7 @@ fn default_port() -> u16 {
     2283
 }
 fn default_ml_port() -> u16 {
-    3003
+    3004
 }
 fn default_media_location() -> String {
     "/data".into()

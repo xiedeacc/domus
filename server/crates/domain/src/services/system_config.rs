@@ -112,7 +112,7 @@ pub fn default_config() -> serde_json::Value {
         },
         "machineLearning": {
             "enabled": false,
-            "urls": ["http://immich-machine-learning:3003"],
+            "urls": ["http://127.0.0.1:3004"],
             "availabilityChecks": {"enabled": false, "timeout": 2000, "interval": 30000},
             "clip": {"enabled": false, "modelName": "ViT-B-32__openai"},
             "duplicateDetection": {"enabled": false, "maxDistance": 0.01},
